@@ -20,7 +20,15 @@ function addIndent(texts, indentation) {
     letter.parentNode.removeChild(letter);
   };
 
-  if(texts.length > 1) {
+
+  if(typeof (texts) === "undefined") {
+    if(!addIndent.error) {
+      window.console.error("addIndent function was called for non-existant element");
+      addIndent.error = true;
+    }
+
+    window.requestAnimationFrame(function() { addIndent(texts, indentation); });
+  } else if(texts.length > 1) {
     for(var i = 0; i < texts.length; i++) {
       indent(texts[i], length(texts[i]));
     }
@@ -29,7 +37,7 @@ function addIndent(texts, indentation) {
   }
 
   if(!addIndent.listening) {
-    window.addEventListener('resize', function() { addIndent(texts, indent); });
+    window.addEventListener('resize', function() { addIndent(texts, indentation); });
     addIndent.listening = true;
   }
 }
