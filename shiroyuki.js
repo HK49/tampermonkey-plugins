@@ -40,8 +40,7 @@ function colorManager() {
     var newStyle = [];
     for(var i in oldStyle) { newStyle.push((+oldStyle[i] > 60 && +oldStyle[i] - 60) || +oldStyle[i] + 20); }
     var darkerRule = { background: 'rgb(' + newStyle.join(', ') + ')' };
-    style('#page', darkerRule);
-    style('body', darkerRule);
+    style('#page, body', darkerRule);
 
     // get sum of r g b
     var rgbSum = oldStyle.reduce(function(a, b) { return +a + +b; }, 0);

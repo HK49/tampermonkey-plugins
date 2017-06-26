@@ -1,8 +1,13 @@
-var style = function(ident, css, func) {
-// function waits for dom to appear on page then apply css rule or exec func
+// call: waitress("#main", { fontSize: "20px" }, function(){});
+// or: waitress("p", addIndent()); ...etc...
+var waitress = function(master, job, support) {
+  // wait for master(s) then do job and if support do support once
+  var sortie = master.split(', ');
+  var work = (typeof (job) === "function");
 
-  style.tag = function(parent, name) {
-    // this function operates with <style> tags. applies to ident as class or tag
+
+  waitress.style = function(parent, name) {
+    // this function operates with <style> tags. applies to masters of kind class or tag
 
     var assign = function() { return document.getElementsByName(name + "_style")[0]; };
     if(!assign()) { parent.insertAdjacentHTML('beforeend', "<style name='" + name + "_style'></style>"); }
@@ -38,14 +43,13 @@ var style = function(ident, css, func) {
       // clean whitespaces
       for(i = 0; i < rulesArray.length; i++) { rulesArray[i] = rulesArray[i].trim(); }
       // delete old rules with the same key as new rules, but leave other intact
-      for(var key in css) {
-        if (!css.hasOwnProperty(key)) { continue; }
+      Object.keys(job).forEach(function(key) {
         for(i = 0; i < rulesArray.length; i++) {
           if(rulesArray[i].includes(hyphenize(String(key)))) {
             rulesArray.splice(i, 1);
           }
         }
-      }
+      });
       // add back what is left (aka delete rules with the same key as in 'css' object)
       tag.innerText = arr.join('') + name + '{' + rulesArray.join(';') + '}';
     };
@@ -55,38 +59,45 @@ var style = function(ident, css, func) {
     if(tagRules.length > 0) { rebuild(tagRules); }
 
     // add new rules
-    tag.innerText += structurize(name.toString(), css);
+    tag.innerText += structurize(name.toString(), job);
   };
 
-  style.ongo = function(name) {
-    if(((/(:before|:after)$/.test(name))
-      && ((name.split(/(:before|:after)$/)[0].startsWith('.', 0)
-        && document.getElementsByClassName(name.substr(1).split(/(:before|:after)$/)[0])[0])
-      || (name.split(/(:before|:after)$/)[0].startsWith('#', 0)
-        && document.getElementById(name.substr(1).split(/(:before|:after)$/)[0]))
-      || (/^[a-z]/.test(name)
-        && document.getElementsByTagName(name.split(/(:before|:after)$/)[0])[0]))
+  waitress.act = function(action) {
+    if(work) { job(); }
+    if(!work) { action(); }
+    if(support && !waitress.supported) { support(); waitress.supported = true; }
+  };
+
+
+  waitress.wait = function(one) {
+    if(((/(:before|:after)$/.test(one))
+      && ((one.split(/(:before|:after)$/)[0].startsWith('.', 0)
+        && document.getElementsByClassName(one.substr(1).split(/(:before|:after)$/)[0])[0])
+      || (one.split(/(:before|:after)$/)[0].startsWith('#', 0)
+        && document.getElementById(one.substr(1).split(/(:before|:after)$/)[0]))
+      || (/^[a-z]/.test(one)
+        && document.getElementsByTagName(one.split(/(:before|:after)$/)[0])[0]))
       )
-    || ((/^[a-z]/.test(name)) && (name !== "body") && document.getElementsByTagName(name)[0])
-    || (name.toString().startsWith('.', 0) && document.getElementsByClassName(name.substr(1))[0])) {
+    || ((/^[a-z]/.test(one)) && (one !== "body") && document.getElementsByTagName(one)[0])
+    || (one.toString().startsWith('.', 0) && document.getElementsByClassName(one.substr(1))[0])) {
       // scheme: first check type of name then if corresponding elem exists in doc
 
-      if(css) { style.tag(document.head, name); }
-      if(func && !style.funced) { func(); style.funced = true; }
-    } else if(name.toString().startsWith('#', 0) && document.getElementById(name.substr(1))) {
-      if(css) { Object.assign(document.getElementById(name.substr(1)).style, css); }
-      if(func && !style.funced) { func(); style.funced = true; }
-    } else if ((name === "body") && document.body) {
-      if(css) { Object.assign(document.body.style, css); }
-      if(func && !style.funced) { func(); style.funced = true; }
+      waitress.act(function() { waitress.style(document.head, one); });
+    } else if(one.toString().startsWith('#', 0) && document.getElementById(one.substr(1))) {
+      waitress.act(function() { Object.assign(document.getElementById(one.substr(1)).style, job); });
+    } else if ((one === "body") && document.body) {
+      waitress.act(function() { Object.assign(document.body.style, job); });
     } else {
-      setTimeout(function() { style(ident, css, func); }, 100);
+      requestAnimationFrame(function() { waitress(master, job, support); });
     }
   };
 
-  if(ident.split(', ').length > 1) {
-    Object.keys(ident.split(', ')).forEach(function(i) { style.ongo(ident.split(', ')[i]); });
+  // only two types of job could be done: styling and function
+  if(["object", "function"].includes(typeof (job))) {
+    for(var i = 0; i < sortie.length; i++) {
+      waitress.wait(sortie[i]);
+    }
   } else {
-    style.ongo(ident);
+    window.console.info("waitress function job is unknown.");
   }
 };
