@@ -70,13 +70,14 @@ var waitress = function(master, job, support) {
 
 
   waitress.wait = function(one) {
-    if(((/(:before|:after)$/.test(one))
-      && ((one.split(/(:before|:after)$/)[0].startsWith('.', 0)
-        && document.getElementsByClassName(one.substr(1).split(/(:before|:after)$/)[0])[0])
-      || (one.split(/(:before|:after)$/)[0].startsWith('#', 0)
-        && document.getElementById(one.substr(1).split(/(:before|:after)$/)[0]))
+    var tester = (/(:link|:visited|:hover|:active|:before|::before|:after|::after)/);
+    if((tester.test(one)
+      && ((one.split(tester)[0].startsWith('.', 0)
+        && document.getElementsByClassName(one.substr(1).split(tester)[0])[0])
+      || (one.split(tester)[0].startsWith('#', 0)
+        && document.getElementById(one.substr(1).split(tester)[0]))
       || (/^[a-z]/.test(one)
-        && document.getElementsByTagName(one.split(/(:before|:after)$/)[0])[0]))
+        && document.getElementsByTagName(one.split(tester)[0])[0]))
       )
     || ((/^[a-z]/.test(one)) && (one !== "body") && document.getElementsByTagName(one)[0])
     || (one.toString().startsWith('.', 0) && document.getElementsByClassName(one.substr(1))[0])) {
