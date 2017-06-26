@@ -88,7 +88,7 @@ var waitress = function(master, job, support) {
     } else if ((one === "body") && document.body) {
       waitress.act(function() { Object.assign(document.body.style, job); });
     } else {
-      requestAnimationFrame(function() { waitress(master, job, support); });
+      requestAnimationFrame(function() { waitress(one, job, support); });
     }
   };
 
