@@ -21,7 +21,7 @@ var waitress = function(master, job, support) {
 
     var structurize = function(el, rules) {
       var joint = '', last = Object.keys(rules)[Object.keys(rules).length - 1];
-      // construct css rule (aka #foo{bar: baz;}) from styler('#foo', { bar: 'baz' });
+      // construct css rule (aka #foo{bar: baz;}) from waitress('#foo', { bar: 'baz' });
       for (var i in rules) {
         if (!rules.hasOwnProperty(i)) { continue; }
         var key = hyphenize(String(i)), value = String(rules[i]);
