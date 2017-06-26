@@ -6,7 +6,7 @@
 // @require        https://github.com/HK49/tampermonkey-plugins/raw/stable/libs/hide_inactive_mouse.js
 // @require        https://github.com/HK49/tampermonkey-plugins/raw/stable/libs/waitress.js
 // @require        https://github.com/HK49/tampermonkey-plugins/raw/stable/libs/indent.js
-// @version        0.31
+// @version        0.32
 // @updateURL      https://github.com/HK49/tampermonkey-plugins/raw/stable/shiroyuki.js
 // @downloadURL    https://github.com/HK49/tampermonkey-plugins/raw/stable/shiroyuki.js
 // @grant    GM_addStyle
@@ -31,16 +31,16 @@ function colorManager() {
   });
 
   if(main) {
-    // update saveBG
-    saveBG = main.style.backgroundColor || saveBG;
-    /// TODO but what to do if color is rgb but for example "blue"?
-    var oldStyle = saveBG.match(/\d+/g);
+    // update saveBG; getComputedStyle gets rgb of backgroundColor
+    saveBG = window.getComputedStyle(main).backgroundColor || saveBG;
 
+    // getter and setter
+    var oldStyle = saveBG.match(/\d+/g), newStyle = [];
     // make #page and body darker or lighter then #main
-    var newStyle = [];
-    for(var i in oldStyle) { newStyle.push((+oldStyle[i] > 60 && +oldStyle[i] - 60) || +oldStyle[i] + 20); }
-    var darkerRule = { background: 'rgb(' + newStyle.join(', ') + ')' };
-    waitress('#page, body', darkerRule);
+    for(var i = 0; i < oldStyle.length; i++) {
+      newStyle.push((+oldStyle[i] > 60 && +oldStyle[i] - 60) || +oldStyle[i] + 20);
+    }
+    waitress('#page, body', { background: 'rgb(' + newStyle.join(', ') + ')' });
 
     // get sum of r g b
     var rgbSum = oldStyle.reduce(function(a, b) { return +a + +b; }, 0);
