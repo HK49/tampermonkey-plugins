@@ -8,7 +8,7 @@
 // @require        https://github.com/HK49/tampermonkey-plugins/raw/stable/libs/hide_inactive_mouse.js
 // @require        https://github.com/HK49/tampermonkey-plugins/raw/stable/libs/waitress.js
 // @require        https://github.com/HK49/tampermonkey-plugins/raw/stable/libs/indent.js
-// @version        0.32
+// @version        0.33
 // @updateURL      https://github.com/HK49/tampermonkey-plugins/raw/stable/shiroyuki.js
 // @downloadURL    https://github.com/HK49/tampermonkey-plugins/raw/stable/shiroyuki.js
 // @grant    GM_addStyle
@@ -67,13 +67,20 @@ function colorManager() {
 }
 
 function shiroyukiMainFunc() {
-  waitress('#main', { background: saveBG, padding: '10%', textAlign: 'justify' }, colorManager());
+  waitress('#main', {
+    background: saveBG,
+    padding: '10%',
+    textAlign: 'justify',
+    display: 'flex',
+    flexDirection: 'column'
+  }, colorManager());
   waitress('#page', { boxShadow: '0 0 50px hsla(0, 0%, 0%, 0.3)', width: '80%', maxWidth: '210mm' });
   waitress('#page::before, #page::after', { width: '100% !important' });
   waitress('p', { fontSize: '1.3rem', lineHeight: '1.8rem' });
-  waitress('#sidebar', { display: 'none' });
-  waitress('#primary', { width: '100%' });
-  waitress('body', { scrollbarZIndex: '9e99' });
+  waitress('#primary', { width: '100%', minWidth: '100%' });
+  waitress('#sidebar', { display: 'flex', width: '100%', flexWrap: 'wrap' });
+  waitress('#search-3, #meta-2', { flexGrow: '1' });
+  waitress('body', { scrollbarZIndex: 9e99 + '' });
 }
 
 if(window.location.host.includes("shiroyukitranslations")) {
@@ -92,16 +99,41 @@ function fullScreen() {
     width: '26px',
     height: '26px',
     border: 'solid 2px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    opacity: '.6',
+    transition: 'all .6s ease'
   });
   document.getElementsByTagName("html")[0].style.backgroundColor = document.body.style.background;
-  document.head.insertAdjacentHTML('beforeend', "<style name=fullscreen'>body:-webkit-full-screen { overflow-y: scroll; background-color: " + document.body.style.background + "; width:100%; height:100%; }</style>");
+  document.head.insertAdjacentHTML('beforeend', "<style name=fullscreen'>body:-webkit-full-screen { overflow-y: scroll; background-color: " + document.body.style.background + "; width:100%; height:100%; } #btn_full:hover { opacity: 1 !important; }</style>");
 
-  waitress("#btn_full::before, #btn_full::after", { content: '\'\'', width: '0', height: '0', position: 'absolute', borderTopColor: 'transparent', borderBottomColor: 'transparent', borderStyle: 'solid', transition: "all .3s ease-in-out" });
-  waitress("#btn_full::before", { left: '3px', bottom: '3px', borderWidth: '10px 0 0 10px' });
-  waitress("#btn_full::after", { right: '3px', top: '3px', borderWidth: '0 10px 10px 0' });
-  waitress("#btn_full:hover::before", { left: '1px', bottom: '1px' });
-  waitress("#btn_full:hover::after", { right: '1px', top: '1px' });
+  waitress("#btn_full::before, #btn_full::after", {
+    content: '\'\'',
+    width: '0',
+    height: '0',
+    position: 'absolute',
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderStyle: 'solid',
+    transition: "all .3s ease"
+  });
+
+  var restyle = function(full) {
+    btn.setAttribute("title", (screenFull ? "Exit" : "Enter") + " full screen mode");
+    waitress("#btn_full::before", {
+      left: (full ? '0' : '3px'),
+      bottom: (full ? '0' : '3px'),
+      borderWidth: '10px 0 0 10px'
+    });
+    waitress("#btn_full::after", {
+      right: (full ? '0' : '3px'),
+      top: (full ? '0' : '3px'),
+      borderWidth: '0 10px 10px 0'
+    });
+    waitress("#btn_full:hover::before", { left: (!full ? '0' : '3px'), bottom: (!full ? '0' : '3px') });
+    waitress("#btn_full:hover::after", { right: (!full ? '0' : '3px'), top: (!full ? '0' : '3px') });
+  };
+
+  restyle(screenFull);
 
   var action = function(o) {
     if(!screenFull) {
@@ -113,6 +145,7 @@ function fullScreen() {
       screenFull = false;
       req.bind(document).apply();
     }
+    restyle(screenFull);
   };
   btn.addEventListener('click', function(){ action(document.body); });
 }
