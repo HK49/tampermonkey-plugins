@@ -1,3 +1,5 @@
+/* global waitress, mouse, addIndent */
+
 // ==UserScript==
 // @name           Style shiroyukitranslations
 // @description    Change interface on shiroyukitranslations.com
@@ -46,7 +48,7 @@ function colorManager() {
     var rgbSum = oldStyle.reduce(function(a, b) { return +a + +b; }, 0);
     // change text color depending on #main bg color
     var txt = { green: 'rgb(100, 155, 100)', dark: 'rgb(30, 30, 30)', warm: 'rgb(80, 50, 26)' };
-    waitress('p', {
+    waitress('p, #btn_full', {
       color: (
         (rgbSum === 718 ? txt.warm : rgbSum > 600 ? txt.dark : rgbSum < 90 ? txt.green : '')
         + '!important'
@@ -55,7 +57,7 @@ function colorManager() {
 
     if(!main.observing) {
       observer.observe(main, { attributes: true, attributeFilter: ['style'] });
-      observer.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+      observer.observe(document.getElementById('page'), { attributes: true, attributeFilter: ['style'] });
       main.observing = true;
     }
   } else {
@@ -67,7 +69,7 @@ function colorManager() {
 function shiroyukiMainFunc() {
   waitress('#main', { background: saveBG, padding: '10%', textAlign: 'justify' }, colorManager());
   waitress('#page', { boxShadow: '0 0 50px hsla(0, 0%, 0%, 0.3)', width: '80%', maxWidth: '210mm' });
-  waitress('#page:before, #page:after', { width: '100% !important' });
+  waitress('#page::before, #page::after', { width: '100% !important' });
   waitress('p', { fontSize: '1.3rem', lineHeight: '1.8rem' });
   waitress('#sidebar', { display: 'none' });
   waitress('#primary', { width: '100%' });
@@ -78,6 +80,43 @@ if(window.location.host.includes("shiroyukitranslations")) {
   shiroyukiMainFunc();
 }
 
+function fullScreen() {
+  var screenFull, req;
+  var btn = document.body.insertBefore(document.createElement("btn"), document.body.firstElementChild);
+
+  btn.setAttribute("id", "btn_full");
+  Object.assign(btn.style, {
+    position: 'fixed',
+    bottom: '10px',
+    left: '10px',
+    width: '26px',
+    height: '26px',
+    border: 'solid 2px',
+    cursor: 'pointer'
+  });
+  document.getElementsByTagName("html")[0].style.backgroundColor = document.body.style.background;
+  document.head.insertAdjacentHTML('beforeend', "<style name=fullscreen'>body:-webkit-full-screen { overflow-y: scroll; background-color: " + document.body.style.background + "; width:100%; height:100%; }</style>");
+
+  waitress("#btn_full::before, #btn_full::after", { content: '\'\'', width: '0', height: '0', position: 'absolute', borderTopColor: 'transparent', borderBottomColor: 'transparent', borderStyle: 'solid', transition: "all .3s ease-in-out" });
+  waitress("#btn_full::before", { left: '3px', bottom: '3px', borderWidth: '10px 0 0 10px' });
+  waitress("#btn_full::after", { right: '3px', top: '3px', borderWidth: '0 10px 10px 0' });
+  waitress("#btn_full:hover::before", { left: '1px', bottom: '1px' });
+  waitress("#btn_full:hover::after", { right: '1px', top: '1px' });
+
+  var action = function(o) {
+    if(!screenFull) {
+      req = o.requestFullScreen || o.webkitRequestFullscreen || o.mozRequestFullScreen || o.msRequestFullscreen;
+      screenFull = true;
+      req.apply(o);
+    } else {
+      req = document.exitFullscreen || document.webkitExitFullscreen || document.mozExitFullScreen || document.msExitFullscreen;
+      screenFull = false;
+      req.bind(document).apply();
+    }
+  };
+  btn.addEventListener('click', function(){ action(document.body); });
+}
+
 document.addEventListener('readystatechange', function() {
   if(document.readyState === "complete") {
     // hide mouse if not moving (kinda)
@@ -85,6 +124,8 @@ document.addEventListener('readystatechange', function() {
 
     // add indent on long paragraphs
     addIndent(document.getElementsByTagName('p'));
+
+    fullScreen();
   }
 });
 
