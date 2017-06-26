@@ -70,26 +70,26 @@ var waitress = function(master, job, support) {
 
 
   waitress.wait = function(one) {
-    var tester = (/(:link|:visited|:hover|:active|:before|::before|:after|::after)/);
-    if((tester.test(one)
-      && ((one.split(tester)[0].startsWith('.', 0)
-        && document.getElementsByClassName(one.substr(1).split(tester)[0])[0])
-      || (one.split(tester)[0].startsWith('#', 0)
-        && document.getElementById(one.substr(1).split(tester)[0]))
-      || (/^[a-z]/.test(one)
-        && document.getElementsByTagName(one.split(tester)[0])[0]))
-      )
-    || ((/^[a-z]/.test(one)) && (one !== "body") && document.getElementsByTagName(one)[0])
-    || (one.toString().startsWith('.', 0) && document.getElementsByClassName(one.substr(1))[0])) {
-      // scheme: first check type of name then if corresponding elem exists in doc
-
-      waitress.act(function() { waitress.style(document.head, one); });
-    } else if(one.toString().startsWith('#', 0) && document.getElementById(one.substr(1))) {
-      waitress.act(function() { Object.assign(document.getElementById(one.substr(1)).style, job); });
-    } else if ((one === "body") && document.body) {
-      waitress.act(function() { Object.assign(document.body.style, job); });
-    } else {
-      requestAnimationFrame(function() { waitress(one, job, support); });
+    var regex = /(:link|:visited|:hover|:active|:before|::before|:after|::after)$/;
+    var clean = one;
+    while(regex.test(clean)) { clean = clean.split(regex)[0]; }
+    while(/^(#|\.)/.test(clean)) { clean = clean.substr(1); }
+    switch(true) {
+      case ((one === "body") && (one === clean) && !!document.body):
+        waitress.act(function() { Object.assign(document.body.style, job); });
+        break;
+      case (regex.test(one)):
+        // fall through
+      case (one.startsWith('.', 0) && !!document.getElementsByClassName(clean)[0]):
+        // fall through
+      case ((/^[a-z]/.test(one)) && !!document.getElementsByTagName(clean)[0]):
+        waitress.act(function() { waitress.style(document.head, one); });
+        break;
+      case (one.startsWith('#', 0) && !!document.getElementById(clean)):
+        waitress.act(function() { Object.assign(document.getElementById(one.substr(1)).style, job); });
+        break;
+      default:
+        window.requestAnimationFrame(function() { waitress(one, job, support); });
     }
   };
 
