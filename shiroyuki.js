@@ -55,6 +55,11 @@ function colorManager() {
       )
     });
 
+    var links = document.getElementsByTagName("a");
+    for(var l = 0; l < links.length; l++) {
+      links[l].style.setProperty("color", (rgbSum < 375 ? "rgb(0, 119, 204)" : "rgb(54, 171, 138)"), "important");
+    }
+
     if(!main.observing) {
       observer.observe(main, { attributes: true, attributeFilter: ['style'] });
       observer.observe(document.getElementById('page'), { attributes: true, attributeFilter: ['style'] });
@@ -158,7 +163,14 @@ document.addEventListener('readystatechange', function() {
     // add indent on long paragraphs
     addIndent(document.getElementsByTagName('p'));
 
+    // ability to go full screen mode from button
     fullScreen();
+
+    var link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+    link.type = 'image/x-icon';
+    link.rel = 'shortcut icon';
+    link.href = 'https://i.stack.imgur.com/HgBua.png';
+    document.getElementsByTagName('head')[0].appendChild(link);
   }
 });
 
