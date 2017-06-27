@@ -25,18 +25,18 @@ var waitress = function(master, job, support) {
       for (var i in rules) {
         if (!rules.hasOwnProperty(i)) { continue; }
         var key = hyphenize(String(i)), value = String(rules[i]);
-        joint += key + ':' + ' ' + value + (i == last ? '' : ';');
+        joint += '\n\t' + key + ': ' + value + (i == last ? '' : '; ');
       }
 
-      return (el + '{' + joint + '}');
+      return (el + ' {' + joint + '\n}');
     };
 
     var rebuild = function(arr) {
       var rulesArray = [], i = 0;
       // operate only rules in tag with the same identifier|classifier as function ident
       for(i = arr.length - 1; i >= 0; i--) {
-        if(name === arr[i].split(/{|}/)[0]) {
-          rulesArray = rulesArray.concat(arr[i].split(/{|}/)[1].split(/;/).filter(String));
+        if(name === arr[i].split(/{|}/)[0].trim()) {
+          rulesArray = rulesArray.concat(arr[i].split(/{|}/)[1].trim().split(/;/).filter(String));
           arr.splice(i, 1);
         }
       }
@@ -51,11 +51,11 @@ var waitress = function(master, job, support) {
         }
       });
       // add back what is left (aka delete rules with the same key as in 'css' object)
-      tag.innerText = arr.join('') + name + '{' + rulesArray.join(';') + '}';
+      tag.innerText = arr.join('\n') + '\n' + name + ' {\n\t' + rulesArray.join(';\n\t') + '\n}';
     };
 
     var tagRules = tag.innerText.replace(/}/g, '}___').split('___').filter(String);
-    // if style tag has rules check if they don't overlap with new ones
+    // if style tag has rules check if they don't overlap with new ones and remove if yes
     if(tagRules.length > 0) { rebuild(tagRules); }
 
     // add new rules
