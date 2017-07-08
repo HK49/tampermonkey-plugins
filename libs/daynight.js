@@ -1,3 +1,6 @@
+// function switch(time) { time === 'day' { light mode } else { night mode } };
+// dayNight({ day: switch("day"), night: switch("night") });
+
 function dayNight(mode) {
   // syntax: dayNight({day: function() { //day! }, night: function() { //night! } });
   if(Object.keys(mode).length !== 2 || !Object.keys(mode).includes("day" && "night")) {
