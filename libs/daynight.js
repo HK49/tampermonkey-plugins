@@ -5,7 +5,7 @@ function dayNight(mode) {
   }
 
   var btn = document.createElement("div"),
-      sun = "\u2600",
+      sun = "\u2600\uFE0E",
       moon = "\u263D",
       // symbols inside btn
       lighten = ((localStorage.lighten && (/^(true|false)$/).test(localStorage.lighten)) ? eval(localStorage.lighten) : true),
@@ -24,8 +24,8 @@ function dayNight(mode) {
   btn.innerText = (lighten ? sun : moon);
   Object.assign(btn.style, {
     position: 'fixed',
-    fontSize: '32px',
-    lineHeight: '24px',
+    font: '32px/24px "Open Sans"',
+    color: 'inherit',
     zIndex: String(1e+4),
     opacity: '0.6',
     cursor: 'pointer'
