@@ -5,6 +5,10 @@ var waitress = function(master, job, support) {
   var sortie = master.split(', ');
   var work = (typeof (job) === "function");
 
+  var hyphenize = function(prop) {
+    // converts fontSize into font-size etc
+    return prop.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); });
+  };
 
   waitress.style = function(parent, name) {
     // this function operates with <style> tags. applies to masters of kind class or tag
@@ -13,11 +17,6 @@ var waitress = function(master, job, support) {
     if(!assign()) { parent.insertAdjacentHTML('beforeend', "<style name='" + name + "_style'></style>"); }
     // create new style tag or get existant
     var tag = assign();
-
-    var hyphenize = function(prop) {
-      // converts fontSize into font-size etc
-      return prop.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); });
-    };
 
     var structurize = function(el, rules) {
       var joint = '', last = Object.keys(rules)[Object.keys(rules).length - 1];
@@ -71,11 +70,10 @@ var waitress = function(master, job, support) {
   waitress.act = function(actor) {
     var propr = function() {
       Object.keys(job).forEach(function(key, id) {
-        var value = Object.values(job)[id].replace(/!important/, '\s\v\v!important').split('\s\v\v').filter(String);
+        var value = Object.values(job)[id].replace(/\s?!i/, '\s\v\v!i').split('\s\v\v').filter(String);
         actor.style.setProperty(
-          key,
-          ///TODO if key is camelcase - hyphenize it
-          value[0].trim(),
+          hyphenize(String(key)),
+          value[0],
           (value[1] ? value[1].substr(1) : '')
         );
       });
