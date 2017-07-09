@@ -80,6 +80,12 @@ var waitress = function(master, job, support) {
     while(regex.test(clean)) { clean = clean.split(regex)[0]; }
     while(/^(#|\.)/.test(clean)) { clean = clean.substr(1); }
     switch(true) {
+      case((/^\w+\[.+\]$/).test(clean) && !regex.test(one)):
+        var loop = function(i) { Object.assign(i.style, job); };
+        for(var i = 0; i < document.querySelectorAll(clean).length; i++) {
+          waitress.act(loop(document.querySelectorAll(clean)[i]));
+        }
+        break;
       case ((one === "body") && (one === clean) && !!document.body):
         waitress.act(function() { Object.assign(document.body.style, job); });
         break;
