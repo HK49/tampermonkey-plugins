@@ -51,7 +51,12 @@ var waitress = function(master, job, support) {
         }
       });
       // add back what is left (aka delete rules with the same key as in 'css' object)
-      tag.innerText = arr.join('\n') + '\n' + name + ' {\n\t' + rulesArray.join(';\n\t') + '\n}';
+      if(rulesArray.length > 0) {
+        tag.innerText = arr.join('\n') + '\n' + name + ' {\n\t' + rulesArray.join(';\n\t') + '\n}';
+      } else {
+        tag.innerText = "";
+        // but if nothing is left, then leave this style tag empty
+      }
     };
 
     var tagRules = tag.innerText.replace(/}/g, '}___').split('___').filter(String);
