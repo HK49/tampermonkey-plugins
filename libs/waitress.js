@@ -33,10 +33,10 @@ var waitress = function(master, job, support) {
 
     var rebuild = function(arr) {
       var rulesArray = [], i = 0;
-      // operate only rules in tag with the same identifier|classifier as function ident
+      // operate only rules in tag with the same identifier|classifier as waitress.style "name" var
       for(i = arr.length - 1; i >= 0; i--) {
         if(name === arr[i].split(/{|}/)[0].trim()) {
-          rulesArray = rulesArray.concat(arr[i].split(/{|}/)[1].trim().split(/;/).filter(String));
+          rulesArray = rulesArray.concat(arr[i].split(/{|}/)[1].trim().split(';').filter(String));
           arr.splice(i, 1);
         }
       }
@@ -45,7 +45,7 @@ var waitress = function(master, job, support) {
       // delete old rules with the same key as new rules, but leave other intact
       Object.keys(job).forEach(function(key) {
         for(i = 0; i < rulesArray.length; i++) {
-          if(rulesArray[i].includes(hyphenize(String(key)))) {
+          if(rulesArray[i].split(':')[0] === hyphenize(String(key))) {
             rulesArray.splice(i, 1);
           }
         }
