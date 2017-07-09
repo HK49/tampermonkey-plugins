@@ -67,9 +67,20 @@ var waitress = function(master, job, support) {
     tag.innerText += structurize(name.toString(), job);
   };
 
-  waitress.act = function(action) {
-    if(work) { job(); }
-    if(!work) { action(); }
+
+  waitress.act = function(actor) {
+    var propr = function() {
+      Object.keys(job).forEach(function(key, id) {
+        var value = Object.values(job)[id].replace(/!important/, '\s\v\v!important').split('\s\v\v').filter(String);
+        actor.style.setProperty(
+          key,
+          ///TODO if key is camelcase - hyphenize it
+          value[0].trim(),
+          (value[1] ? value[1].substr(1) : '')
+        );
+      });
+    };
+    work ? job() : (typeof (actor) === "function") ? actor() : propr();
     if(support && !waitress.supported) { support(); waitress.supported = true; }
   };
 
@@ -81,13 +92,12 @@ var waitress = function(master, job, support) {
     while(/^(#|\.)/.test(clean)) { clean = clean.substr(1); }
     switch(true) {
       case((/^\w+\[.+\]$/).test(clean) && !regex.test(one)):
-        var loop = function(i) { Object.assign(i.style, job); };
-        for(var i = 0; i < document.querySelectorAll(clean).length; i++) {
-          waitress.act(loop(document.querySelectorAll(clean)[i]));
+        for(var q = 0; q < document.querySelectorAll(clean).length; q++) {
+          waitress.act(document.querySelectorAll(clean)[q]);
         }
         break;
       case ((one === "body") && (one === clean) && !!document.body):
-        waitress.act(function() { Object.assign(document.body.style, job); });
+        waitress.act(document.body);
         break;
       case (regex.test(one)):
         // fall through
@@ -97,7 +107,7 @@ var waitress = function(master, job, support) {
         waitress.act(function() { waitress.style(document.head, one); });
         break;
       case (one.startsWith('#', 0) && !!document.getElementById(clean)):
-        waitress.act(function() { Object.assign(document.getElementById(one.substr(1)).style, job); });
+        waitress.act(document.getElementById(one.substr(1)));
         break;
       default:
         window.requestAnimationFrame(function() { waitress(one, job, support); });
