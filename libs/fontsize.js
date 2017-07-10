@@ -1,5 +1,5 @@
 function scaleFont() {
-  if(!(/^interactive|ready$/).test(document.readyState)) {
+  if(!(/^interactive|complete$/).test(document.readyState)) {
     window.requestAnimationFrame(scaleFont);
   } else {
     var fontSize = +localStorage.fontSize
