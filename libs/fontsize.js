@@ -1,5 +1,5 @@
 function scaleFont() {
-  if(!document.getElementsByTagName("html")[0] && !document.body) {
+  if(!(/^interactive|ready$/).test(document.readyState)) {
     window.requestAnimationFrame(scaleFont);
   } else {
     var fontSize = +localStorage.fontSize
@@ -52,7 +52,7 @@ function scaleFont() {
       Object.assign(shine.style, { position: 'absolute', left: '0' });
       impSetter(shine, { color: 'inherit', font: 'inherit' });
 
-      var currentSize = btn.insertBefore(document.createElement('span'), btn.lastElementChild.nextSibling);
+      var currentSize = btn.insertBefore(document.createElement('span'), btn.lastElementChild);
       currentSize.innerText = fontSize + 'px';
       Object.assign(currentSize.style, { position: 'absolute', top: '-30px', left: '-10px', opacity: '.4' });
       impSetter(currentSize, { color: 'inherit', font: 'inherit', fontSize: fontSize + 'px' });
