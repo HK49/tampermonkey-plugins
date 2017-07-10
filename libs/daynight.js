@@ -12,7 +12,7 @@ function dayNight(day, night) {
     off: function() { night.bind(document).apply(); }
   };
 
-  if(!(/^interactive|complete$/).test(document.readyState)) {
+  if(!document.body) {
     window.requestAnimationFrame(function() { dayNight(day, night); });
   } else {
     var btn = document.createElement("div"),
@@ -52,8 +52,8 @@ function dayNight(day, night) {
       clearInterval(int);
       var opacityMax = ((/enter/).test(e.type) ? 1.1 : 0.5);
       opacity = function(){
-        return (Math.round((parseFloat(btn.style.opacity) + ((/enter/).test(e.type) ? 0.1 : -0.1)) * 1e2) / 1e2);
-        // if mouseenter increment opacity, else - decrement; round for right parsing
+        return (Math.round((parseFloat(btn.style.opacity) + ((/enter/).test(e.type) ? 0.1 : -0.1)) * 10) / 10);
+        // if mouseenter increment opacity, else - decrement; round for correct parsing
       };
       int = setInterval(function() {
         if(opacity() === opacityMax) {
