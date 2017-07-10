@@ -89,9 +89,10 @@ var waitress = function(master, job, support) {
     while(regex.test(clean)) { clean = clean.split(regex)[0]; }
     while(/^(#|\.)/.test(clean)) { clean = clean.substr(1); }
     switch(true) {
-      case((/^\w+\[.+\]$/).test(clean) && !regex.test(one)):
+      case((/^\w+\[.+\]$/).test(clean) && !regex.test(one) && !!document.querySelector(clean)):
         for(var q = 0; q < document.querySelectorAll(clean).length; q++) {
           waitress.act(document.querySelectorAll(clean)[q]);
+          ///TODO document.querySelectorAll(clean)[q] can be not loaded before loop 'cause we wait only first
         }
         break;
       case ((one === "body") && (one === clean) && !!document.body):
