@@ -50,9 +50,9 @@ function dayNight(day, night) {
     var int, opacity;
     var translucent = function(e) {
       clearInterval(int);
-      var opacityMax = ((/enter/).test(e.type) ? 1.1 : 0.5);
+      var opacityMax = ((/enter/).test(e) ? 1.1 : 0.5);
       opacity = function(){
-        return (Math.round((parseFloat(btn.style.opacity) + ((/enter/).test(e.type) ? 0.1 : -0.1)) * 10) / 10);
+        return (Math.round((parseFloat(btn.style.opacity) + ((/enter/).test(e) ? 0.1 : -0.1)) * 10) / 10);
         // if mouseenter increment opacity, else - decrement; round for correct parsing
       };
       int = setInterval(function() {
