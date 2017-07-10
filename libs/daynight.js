@@ -75,6 +75,6 @@ function dayNight(day, night) {
     };
   }
 
-  window.onbeforeunload = function(){ localStorage.darkened = darkened; };
+  window.addEventListener("beforeunload", function(){ localStorage.darkened = darkened; });
   // store mode for staying the same in night/day mode;
 }

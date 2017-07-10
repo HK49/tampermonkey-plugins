@@ -88,6 +88,6 @@ function scaleFont() {
       e.deltaY > 0 ? shiny(btn.querySelector("span[symbol='-']"), "-") : shiny(btn.firstElementChild, "+");
     });
 
-    window.onbeforeunload = function(){ localStorage.fontSize = fontSize; };
+    window.addEventListener("beforeunload", function(){ localStorage.fontSize = fontSize; });
   }
 }
