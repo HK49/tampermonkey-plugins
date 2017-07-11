@@ -1,20 +1,24 @@
 // call: waitress("#main", { fontSize: "20px" }, function(){});
 // or: waitress("p", addIndent()); ...etc...
 var waitress = function(master, job, support) {
-  // wait for master(s) then do job and if support do support once
-  var sortie = master.split(/\s?,\s?/);
-  var work = (typeof (job) === "function");
+  // waits for master(s) then does job and if support does supportive function once
 
   var hyphenize = function(prop) {
     // converts fontSize into font-size etc
     return prop.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); });
   };
 
-  waitress.style = function(parent, name) {
+  ///TODO optimise use waitress.style independently from main waitress function
+  waitress.style = function(name, css, parent) {
     // this function operates with <style> tags. applies to masters of kind class or tag
 
     var assign = function() { return document.getElementsByName(name + "_style")[0]; };
-    if(!assign()) { parent.insertAdjacentHTML('beforeend', "<style name='" + name + "_style'></style>"); }
+    if(!assign()) {
+      (parent || document.head).insertAdjacentHTML(
+        'beforeend',
+        "<style name='" + name + "_style'></style>"
+      );
+    }
     // create new style tag or get existant
     var tag = assign();
 
@@ -42,7 +46,7 @@ var waitress = function(master, job, support) {
       // clean whitespaces
       for(i = 0; i < rulesArray.length; i++) { rulesArray[i] = rulesArray[i].trim(); }
       // delete old rules with the same key as new rules, but leave other intact
-      Object.keys(job).forEach(function(key) {
+      Object.keys(css).forEach(function(key) {
         for(i = 0; i < rulesArray.length; i++) {
           if(rulesArray[i].split(':')[0] === hyphenize(String(key))) {
             rulesArray.splice(i, 1);
@@ -59,6 +63,8 @@ var waitress = function(master, job, support) {
     };
 
     var tagRules = tag.innerText.replace(/}/g, '}___').split('___').filter(String);
+    // not foolproof. what if there is rule with "}" inside? for instance content: '}'?
+
     // if style tag has rules check if they don't overlap with new ones and remove if yes
     if(tagRules.length > 0) { rebuild(tagRules); }
 
@@ -78,7 +84,7 @@ var waitress = function(master, job, support) {
         );
       });
     };
-    work ? job() : (typeof (actor) === "function") ? actor() : propr();
+    typeof job === "function" ? job() : (typeof (actor) === "function") ? actor() : propr();
     if(support && !waitress.supported) { support(); waitress.supported = true; }
   };
 
@@ -103,7 +109,7 @@ var waitress = function(master, job, support) {
       case (one.startsWith('.', 0) && !!document.getElementsByClassName(clean)[0]):
         // fall through
       case ((/^[a-z]/.test(one)) && !!document.getElementsByTagName(clean)[0]):
-        waitress.act(function() { waitress.style(document.head, one); });
+        waitress.act(function() { waitress.style(one, job); });
         break;
       case (one.startsWith('#', 0) && !!document.getElementById(clean)):
         waitress.act(document.getElementById(one.substr(1)));
@@ -112,6 +118,11 @@ var waitress = function(master, job, support) {
         window.requestAnimationFrame(function() { waitress(one, job, support); });
     }
   };
+
+  // do nothing if no master  and job specified
+  if(!master && !job) { return null; }
+
+  var sortie = (master instanceof Array) ? master : master.split(/\s?,\s?/);
 
   // only two types of job could be done: styling and function
   if(["object", "function"].includes(typeof (job))) {
@@ -122,3 +133,6 @@ var waitress = function(master, job, support) {
     window.console.info("waitress function job is unknown.");
   }
 };
+
+// init
+waitress();
