@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.41
+// @version        0.42
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -22,7 +22,8 @@ var dark = {
     linkHover: 'rgb(248, 210, 196)'
   },
   bg: 'rgb(117, 72, 55)',
-  wrap: 'rgb(59, 36, 30)'
+  wrap: 'rgb(59, 36, 30)',
+  tint: function(a) { return 'hsla(14, 43%, 56%, ' + (a || 1) + ')'; }
 };
 
 var light = {
@@ -33,62 +34,33 @@ var light = {
     linkHover: 'rgb(180, 130, 100)'
   },
   bg: 'rgb(195, 147, 104)',
-  wrap: 'rgb(219, 190, 164)'
+  wrap: 'rgb(219, 190, 164)',
+  tint: function(a) { return 'hsla(30, 30%, 77%, ' + (a || 1) + ')'; }
 };
 
-// var mid = 'hsla(16, 33%, 33%, 0.5)';
-
-var cssfy = function(node, rules) {
-  // no "...arg" in es5. "rules" up here is just placeholder
-  var nodes = node.split(/\s?__\s?/);
-  //join array of nodes with __ to preserve commas in each of them
-  var style = "";
-  // similar to waitress lib
-  var complile = function(obj) {
-    // create css rule from key-value pair: fontSize: "20px" into sting font-size: 20px;
-    var joint = '';
-    Object.keys(obj).forEach(function(key) {
-      joint += key.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); })
-        + ': ' + obj[key] + '; ';
-    });
-
-    return joint;
-  };
-  for(var i = 0; i < nodes.length; i++) {
-    style += (nodes[i] + complile(arguments[i + 1]).trim().replace(/^(.)(.+)(.)$/, '{$1$2$3}'));
-    //create css rule whole. foo{bar: baz;}. arguments[0] are node names, arguments[1+] are rules
-  }
-  var tag = document.getElementsByName(nodes[0] + "_style")[0]
-  || document.head.insertBefore(document.createElement("style"), document.head.lastElementChild);
-  tag.setAttribute("name", nodes[0] + "_style");
-  tag.innerHTML += style;
-};
+var css = {};
+css.nodes = {};
 
 var headRules = function() {
   if((/interactive|complete/).test(document.readyState) && !headRules.applied) {
 
     //globals
-    cssfy(
-      [
-        '*, a, #page *, #page a',
-        'li[id^=\'menu\']'
-      ].join('__'),
-      { color: 'inherit', background: 'transparent' },
-      { color: 'inherit !important' }
-    );
+    waitress.style({
+      '*, a, #page *, #page a': {
+        color: 'inherit',
+        background: 'transparent'
+      },
+      '#page li a': {
+        color: 'inherit !important',
+        background: 'transparent !important'
+      },
+      'input, #page input, #page textarea, #branding #searchform > input#s': { background: light.tint(0.5) },
+      'input:focus, #page input:focus, #page textarea:focus, #branding #searchform > input#s:focus': { background: light.tint() }
+    });
 
     // navbar submenu
-    cssfy(
-      [
-        '#header-menu .menu-item > a + ul',
-        '#header-menu .menu-item > a:hover + ul, #header-menu .menu-item > a + ul:hover',
-        '#header-menu .menu-item > a:hover + ul',
-        '#header-menu .menu-item > a + ul:hover',
-        '#header-menu ul.menu ul a',
-        '#header-menu li[id^=\'menu\'], #header-menu li[id^=\'menu\'] > a',
-        '#branding #searchform > input#s:focus'
-      ].join('__'),
-      {
+    waitress.style({
+      '#header-menu .menu-item > a + ul': {
         display: 'block',
         maxHeight: '0',
         overflow: 'hidden',
@@ -98,49 +70,103 @@ var headRules = function() {
         left: '5rem',
         opacity: '0'
       },
-      { maxHeight: 1e4 + 'px !important', top: '1.6rem', left: '0.8rem' },
-      { opacity: '0.7' },
-      { opacity: '1' },
-      { borderBottom: 'none', fontSize: '0.5rem', lineHeight: '0.5rem' },
-      { color: 'inherit !important' },
-      { background: 'hsl(30, 30%, 80%)' }
-    );
+      '#header-menu .menu-item > a:hover + ul, #header-menu .menu-item > a + ul:hover': {
+        maxHeight: 1e4 + 'px !important',
+        top: '1.6rem',
+        left: '0.8rem'
+      },
+      '#header-menu .menu-item > a:hover + ul': { opacity: '0.7' },
+      '#header-menu .menu-item > a + ul:hover': { opacity: '1' },
+      '#header-menu ul.menu ul a': {
+        borderBottom: 'none',
+        fontSize: '0.5rem',
+        lineHeight: '0.5rem'
+      },
+      '#header-menu li[id^=\'menu\'], #header-menu li[id^=\'menu\'] > a': {
+        color: 'inherit !important',
+        background: 'transparent'
+      },
+      '#header-menu li.menu-item:hover::before': {
+        content: '\'\'',
+        position: 'absolute',
+        zIndex: '-1',
+        width: '100%',
+        height: '100%',
+        background: dark.tint(0.8)
+      }
+    });
 
     if(!(/prologue|chapter/).test(window.location.pathname)) {
       // wrapper and sidebars. (sidebars are not shown when reading)
-      cssfy(
-        [
-          '#main-wrapper > #main > .wrapper',
-          '#main-wrapper > #main > .wrapper > .content-sidebar-wrap',
-          '#third-sidebar',
-          '.widget, .widget > .widget-title, .widget > ul, .widget > ul > li, .widget > ul > li > a',
-          '#primary',
-          '#secondary'
-        ].join('__'),
-        { display: 'flex', flexFlow: 'row-reverse wrap', color: 'inherit !important' },
-        { flex: '1 0 calc(33rem + 340px)', display: 'flex', flexFlow: 'row wrap' },
-        { display: 'block', flex: '0 1 auto', color: 'inherit !important' },
-        { background: 'transparent !important', color: 'inherit !important' },
-        { flex: '0 0 33rem' },
-        { flex: '0 1 auto', color: 'inherit !important' }
-      );
+      css.wrap = {};
+      css.nodes.wrap = {
+        wrapper: '#main-wrapper > #main > .wrapper',
+        content: '#main-wrapper > #main > .wrapper > .content-sidebar-wrap',
+        primary: '#primary',
+        secondary: '#secondary',
+        sidebar: '#third-sidebar',
+        widgets: [
+          '.widget',
+          '.widget > .widget-title',
+          '.widget > ul',
+          '.widget > ul > li',
+          '#page .widget > ul > li > a'
+        ].join(', ')
+      };
+      css.wrap[css.nodes.wrap.wrapper] = {
+        display: 'flex',
+        flexFlow: 'row-reverse wrap',
+        color: 'inherit !important',
+        width: '100%'
+      };
+      css.wrap[css.nodes.wrap.content] = {
+        flex: '1 0 calc(33rem + 340px)',
+        display: 'flex',
+        flexFlow: 'row wrap'
+      };
+      css.wrap[css.nodes.wrap.primary] = { flex: '0 0 33rem' };
+      css.wrap[css.nodes.wrap.secondary] = {
+        flex: '0 1 auto',
+        color: 'inherit !important'
+      };
+      css.wrap[css.nodes.wrap.sidebar] = {
+        display: 'block',
+        flex: '0 1 auto',
+        color: 'inherit !important'
+      };
+      css.wrap[css.nodes.wrap.widgets] = {
+        background: 'transparent !important',
+        color: 'inherit !important'
+      };
+
+      waitress.style(css.wrap);
     }
 
     // comments
-    cssfy(
-      [
-        [
-          '#comments',
-          '#comments > .commentlist',
-          '#comments > .commentlist > .comment',
-          'article[id^=\'comment\']',
-          'article[id^=\'comment\'] + .children'
-        ].join(', '),
-        ['article[id^=\'comment\'] + .children > .comment', '#author-info'].join(', ')
-      ].join('__'),
-      { background: 'transparent !important', color: 'inherit !important' },
-      { background: 'hsla(16, 33%, 33%, 0.5) !important', color: 'inherit !important' }
-    );
+    css.comments = {};
+    css.nodes.comments = {
+      main: [
+        '#comments',
+        '#comments > .commentlist',
+        '#comments > .commentlist > .comment',
+        'article[id^=\'comment\']',
+        'article[id^=\'comment\'] + .children'
+      ].join(', '),
+      tinted: [
+        'article[id^=\'comment\'] + .children > .comment',
+        '#author-info'
+      ].join(', ')
+    };
+    css.comments[css.nodes.comments.main] = {
+      background: 'transparent !important',
+      color: 'inherit !important'
+    };
+    css.comments[css.nodes.comments.tinted] = {
+      background: dark.tint(0.3) + ' !important',
+      color: 'inherit !important'
+    };
+
+    waitress.style(css.comments);
 
     headRules.applied = true;
   }
@@ -196,6 +222,7 @@ var lights = function(daytime) {
   waitress(
     [
       'article[id^=post]',
+      '#content',
       'h1',
       'p',
       'span',
