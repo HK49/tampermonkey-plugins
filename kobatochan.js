@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.421
+// @version        0.422
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -71,9 +71,10 @@ var headRules = function() {
         '#branding #searchform > input#s:focus'
       ]
     };
+    // here array becomes object key... as string. and no error smh
     css.input[css.nodes.input.i] = {
       background: light.tint(0.5),
-      border: '1px solid hsl(22, 77.7%, 78%)',
+      border: '1px solid ' + dark.tint(),
       borderRadius: '4px'
     };
     css.input[css.nodes.input.focus] = { background: light.tint() };
@@ -180,7 +181,8 @@ var headRules = function() {
       tinted: [
         'article[id^=\'comment\'] + .children > .comment',
         '#author-info'
-      ].join(', ')
+      ].join(', '),
+      comment: '#page #comments .comment article'
     };
     css.comments[css.nodes.comments.main] = {
       background: 'transparent !important',
@@ -190,8 +192,15 @@ var headRules = function() {
       background: dark.tint(0.3) + ' !important',
       color: 'inherit !important'
     };
+    css.comments[css.nodes.comments.comment] = {
+      borderBottom: '4px solid' + dark.tint(),
+      borderRadius: '4px'
+    };
 
     waitress.style(css.comments);
+
+    // author/tl notes
+    waitress.style({'#page li[dir=\'ltr\']': { background: dark.tint(0.5) + ' !important' }});
 
     headRules.applied = true;
   }
