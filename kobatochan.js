@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.42
+// @version        0.421
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -53,10 +53,33 @@ var headRules = function() {
       '#page li a': {
         color: 'inherit !important',
         background: 'transparent !important'
-      },
-      'input, #page input, #page textarea, #branding #searchform > input#s': { background: light.tint(0.5) },
-      'input:focus, #page input:focus, #page textarea:focus, #branding #searchform > input#s:focus': { background: light.tint() }
+      }
     });
+
+    css.input = {};
+    css.nodes.input = {
+      i: [
+        'input',
+        '#page input',
+        '#page textarea',
+        '#branding #searchform > input#s'
+      ],
+      focus: [
+        'input:focus',
+        '#page input:focus',
+        '#page textarea:focus',
+        '#branding #searchform > input#s:focus'
+      ]
+    };
+    css.input[css.nodes.input.i] = {
+      background: light.tint(0.5),
+      border: '1px solid hsl(22, 77.7%, 78%)',
+      borderRadius: '4px'
+    };
+    css.input[css.nodes.input.focus] = { background: light.tint() };
+
+    waitress.style(css.input);
+
 
     // navbar submenu
     waitress.style({
@@ -95,6 +118,7 @@ var headRules = function() {
         background: dark.tint(0.8)
       }
     });
+
 
     if(!(/prologue|chapter/).test(window.location.pathname)) {
       // wrapper and sidebars. (sidebars are not shown when reading)
@@ -142,6 +166,7 @@ var headRules = function() {
       waitress.style(css.wrap);
     }
 
+
     // comments
     css.comments = {};
     css.nodes.comments = {
@@ -174,10 +199,12 @@ var headRules = function() {
 
 document.addEventListener('readystatechange', function() { headRules(); }, false);
 
+
 // don't display sidebars when reading
 if(/prologue|chapter/.test(window.location.pathname)) {
   waitress('#secondary, #third-sidebar', { display: 'none' });
 }
+
 
 waitress('#wpadminbar, #header-image', { display: 'none' });
 waitress('.content-sidebar-wrap', { width: '100% !important' });
@@ -193,6 +220,7 @@ waitress('#primary', {
 waitress('html', { marginTop: '0 !important' });
 waitress('p', { fontSize: '1rem', lineHeight: '1.3rem', marginBottom: '1.8rem' });
 waitress('a[href*=kobato], a[href="/"], li[id^=menu]', { background: 'transparent !important' });
+
 
 var lights = function(daytime) {
   var on = (daytime === "day");
