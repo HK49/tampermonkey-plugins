@@ -8,68 +8,73 @@ var waitress = function(master, job, support) {
     return prop.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); });
   };
 
-  ///TODO optimise use waitress.style independently from main waitress function
-  waitress.style = function(name, css, parent) {
-    // this function operates with <style> tags. applies to masters of kind class or tag
 
-    var assign = function() { return document.getElementsByName(name + "_style")[0]; };
-    if(!assign()) {
-      (parent || document.head).insertAdjacentHTML(
-        'beforeend',
-        "<style name='" + name + "_style'></style>"
-      );
-    }
-    // create new style tag or get existant
-    var tag = assign();
+  waitress.style = function(obj, parent) {
+  // adds <style> tag into parent or head with obj key as node(s) and vals as css
+    Object.keys(obj).forEach(function(node, id) {
+      var css = Object.values(obj)[id];
 
-    var structurize = function(el, rules) {
-      var joint = '', last = Object.keys(rules)[Object.keys(rules).length - 1];
-      // construct css rule (aka #foo{bar: baz;}) from waitress('#foo', { bar: 'baz' });
-      for (var i in rules) {
-        if (!rules.hasOwnProperty(i)) { continue; }
-        var key = hyphenize(String(i)), value = String(rules[i]);
-        joint += '\n\t' + key + ': ' + value + (i == last ? '' : '; ');
+      // create new style tag or get existant (by the first key in hash)
+      var tag, assign = function() {
+        return document.getElementsByName(Object.keys(obj)[0] + "_style")[0];
+      };
+      if(!assign()) {
+        tag = document.createElement('style');
+        (parent && parent.insertBefore(tag, parent.lastElementChild))
+        || document.head.insertBefore(tag, document.head.lastElementChild);
+        tag.setAttribute("name", Object.keys(obj)[0] + "_style");
+      } else {
+        tag = assign();
       }
 
-      return (el + ' {' + joint + '\n}');
-    };
-
-    var rebuild = function(arr) {
-      var rulesArray = [], i = 0;
-      // operate only rules in tag with the same identifier|classifier as waitress.style "name" var
-      for(i = arr.length - 1; i >= 0; i--) {
-        if(name === arr[i].split(/{|}/)[0].trim()) {
-          rulesArray = rulesArray.concat(arr[i].split(/{|}/)[1].trim().split(';').filter(String));
-          arr.splice(i, 1);
+      var structurize = function(el, rules) {
+        var joint = '', last = Object.keys(rules)[Object.keys(rules).length - 1];
+        // construct css rule (aka #foo{bar: baz;}) from waitress('#foo', { bar: 'baz' });
+        for (var i in rules) {
+          if (!rules.hasOwnProperty(i)) { continue; }
+          var key = hyphenize(String(i)), value = String(rules[i]);
+          joint += '\n\t' + key + ': ' + value + (i == last ? '' : '; ');
         }
-      }
-      // clean whitespaces
-      for(i = 0; i < rulesArray.length; i++) { rulesArray[i] = rulesArray[i].trim(); }
-      // delete old rules with the same key as new rules, but leave other intact
-      Object.keys(css).forEach(function(key) {
-        for(i = 0; i < rulesArray.length; i++) {
-          if(rulesArray[i].split(':')[0] === hyphenize(String(key))) {
-            rulesArray.splice(i, 1);
+
+        return (el + ' {' + joint + '\n}');
+      };
+
+      var rebuild = function(arr) {
+        var rulesArray = [], i = 0;
+        // operate only rules in tag with the same identifier|classifier as waitress.style "name" var
+        for(i = arr.length - 1; i >= 0; i--) {
+          if(node === arr[i].split(/{|}/)[0].trim()) {
+            rulesArray = rulesArray.concat(arr[i].split(/{|}/)[1].trim().split(';').filter(String));
+            arr.splice(i, 1);
           }
         }
-      });
-      // add back what is left (aka delete rules with the same key as in 'css' object)
-      if(rulesArray.length > 0) {
-        tag.innerText = arr.join('\n') + '\n' + name + ' {\n\t' + rulesArray.join(';\n\t') + '\n}';
-      } else {
-        tag.innerText = "";
-        // but if nothing is left, then leave this style tag empty
-      }
-    };
+        // clean whitespaces
+        for(i = 0; i < rulesArray.length; i++) { rulesArray[i] = rulesArray[i].trim(); }
+        // delete old rules with the same key as new rules, but leave other intact
+        Object.keys(css).forEach(function(key) {
+          for(i = 0; i < rulesArray.length; i++) {
+            if(rulesArray[i].split(':')[0] === hyphenize(String(key))) {
+              rulesArray.splice(i, 1);
+            }
+          }
+        });
+        // add back what is left (aka delete rules with the same key as in 'css' object)
+        if(rulesArray.length > 0) {
+          tag.innerText = arr.join('\n') + '\n' + node + ' {\n\t' + rulesArray.join(';\n\t') + '\n}';
+        } else {
+          tag.innerText = arr.join('\n');
+        }
+      };
 
-    var tagRules = tag.innerText.replace(/}/g, '}___').split('___').filter(String);
-    // not foolproof. what if there is rule with "}" inside? for instance content: '}'?
+      var tagRules = tag.innerText.replace(/}/g, '}___').split('___').filter(String);
+      // not foolproof. what if there is rule with "}" inside? for instance content: '}'?
 
-    // if style tag has rules check if they don't overlap with new ones and remove if yes
-    if(tagRules.length > 0) { rebuild(tagRules); }
+      // if style tag has rules check if they don't overlap with new ones and remove if yes
+      if(tagRules.length) { rebuild(tagRules); }
 
-    // add new rules
-    tag.innerText += structurize(name.toString(), job);
+      // add new rules
+      tag.innerText += structurize(node.toString(), css);
+    });
   };
 
 
@@ -109,7 +114,8 @@ var waitress = function(master, job, support) {
       case (one.startsWith('.', 0) && !!document.getElementsByClassName(clean)[0]):
         // fall through
       case ((/^[a-z]/.test(one)) && !!document.getElementsByTagName(clean)[0]):
-        waitress.act(function() { waitress.style(one, job); });
+        var dict = {}; dict[one] = job;
+        waitress.act(function() { waitress.style(dict); });
         break;
       case (one.startsWith('#', 0) && !!document.getElementById(clean)):
         waitress.act(document.getElementById(one.substr(1)));
