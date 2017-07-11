@@ -2,7 +2,7 @@
 // or: waitress("p", addIndent()); ...etc...
 var waitress = function(master, job, support) {
   // wait for master(s) then do job and if support do support once
-  var sortie = master.split(', ');
+  var sortie = master.split(/\s?,\s?/);
   var work = (typeof (job) === "function");
 
   var hyphenize = function(prop) {
