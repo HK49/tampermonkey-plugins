@@ -16,7 +16,8 @@
 
 var dark = {
   color: {
-    all: 'rgb(215, 186, 161)',
+    all: 'rgb(196, 120, 98)',
+    // old: 'rgb(215, 186, 161)',
     btn: 'rgb(243, 181, 157)',
     link: 'rgb(243, 181, 157)',
     linkHover: 'rgb(248, 210, 196)'
@@ -29,7 +30,8 @@ var dark = {
 
 var light = {
   color: {
-    all: 'rgb(59, 36, 30)',
+    all: 'rgb(150, 92, 75)',
+    // old: 'rgb(59, 36, 30)'
     btn: 'rgb(246, 200, 182)',
     link: 'rgb(146, 89, 79)',
     linkHover: 'rgb(180, 130, 100)'
@@ -42,6 +44,7 @@ var light = {
 
 var css = {};
 css.nodes = {};
+///TODO should just place all css in css and attach it
 
 var fix = {
   bg: function(i) {
@@ -61,49 +64,49 @@ function inputStyle() {
       'input',
       '#page input',
       '#page textarea',
+      '#page #respond input',
       '#page #respond #submit',
       '#page #comments textarea',
       '#branding #searchform > input#s'
     ],
-    focus: [
-      'input:focus',
-      '#page input:focus',
-      '#page textarea:focus',
-      '#page #respond #submit:focus',
-      '#page #comments textarea:focus',
-      '#branding #searchform > input#s:focus'
-    ],
     placeholder: '::placeholder'
   };
+  css.nodes.input.focus = (function() {
+    var arr = [];
+    css.nodes.input.i.forEach(function(i) { arr.push(i + ':focus'); });
+
+    return arr;
+  })();
+
   // here array becomes object key... as string. and no error smh
-  css.input[css.nodes.input.i] = {
-    background: light.tint(0.2),
+  css.input[css.nodes.input.i] = Object.assign({
+    background: dark.tint(0.2),
     border: '1px solid ' + dark.tint(),
     borderRadius: '4px',
-    color: 'inherit !important'
-  };
-  css.input[css.nodes.input.focus] = { background: dark.tint(0.3) };
+    transition: 'background-color .4s ease',
+    font: 'normal 0.8rem/1rem Arial, "sans-serif"',
+    textShadow: 'none',
+    boxShadow: 'none'
+  }, fix.color('!'));
+  css.input[css.nodes.input.focus] = { background: dark.tint(0.4) };
   css.input[css.nodes.input.placeholder] = fix.color();
 
   waitress.style(css.input);
 }
 
-waitress(['input', 'textarea'], function() { inputStyle(); });
+waitress(['input', 'textarea'], inputStyle);
 
 var headRules = function() {
-  if((/interactive|complete/).test(document.readyState) && !headRules.applied) {
+  if((/interactive|complete/).test(document.readyState)) {
 
     //fix for social buttons
-    (function(){
-      var ss = document.getElementsByTagName('ss'),
-          i = document.getElementsByTagName('i'),
-          bg = function(e) {
-            return e.style.setProperty(
-              'background', window.getComputedStyle(e).background, 'important'
-            );
-          };
-      [].forEach.call(ss, function(e){ bg(e); });
-      [].forEach.call(i, function(e){ bg(e); });
+    (function iss(){
+      ['i', 'ss'].forEach(function(e){ iss[e] = document.getElementsByTagName(e); });
+      Array.from(iss.i).concat(Array.from(iss.ss)).forEach(function(e){
+        e.style.setProperty(
+          'background', window.getComputedStyle(e).background, 'important'
+        );
+      });
     })();
 
     //globals
@@ -140,8 +143,8 @@ var headRules = function() {
       '#header-menu .menu-item > a + ul:hover': { opacity: '1' },
       '#header-menu ul.menu ul a': {
         borderBottom: 'none',
-        fontSize: '0.5rem',
-        lineHeight: '0.5rem'
+        fontSize: '0.6rem',
+        lineHeight: '0.7rem'
       },
       '#header-menu li[id^=\'menu\'], #header-menu li[id^=\'menu\'] > a': fix.bgandcolor('', '!'),
       '#header-menu li.menu-item:hover::before': {
@@ -156,6 +159,20 @@ var headRules = function() {
 
 
     if(!(/prologue|chapter/).test(window.location.pathname)) {
+      // homepage
+      css.home = {};
+      css.nodes.home = {
+        content: '.home #content',
+        article: '.home #content article'
+      };
+      css.home[css.nodes.home.content] = { borderColor: 'inherit' };
+      css.home[css.nodes.home.article] = {
+        borderBottom: '0.2rem solid',
+        borderColor: 'inherit',
+        borderRadius: '0'
+      };
+      waitress.style(css.home);
+
       // wrapper and sidebars. (sidebars are not shown when reading)
       css.wrap = {};
       css.nodes.wrap = {
@@ -246,11 +263,11 @@ var headRules = function() {
       }
     });
 
-    headRules.applied = true;
+    document.removeEventListener('readystatechange', headRules, false);
   }
 };
 
-document.addEventListener('readystatechange', function() { headRules(); }, false);
+document.addEventListener('readystatechange', headRules, false);
 
 
 // don't display sidebars when reading
@@ -338,11 +355,21 @@ var lights = function(daytime) {
   // all links
   waitress(
     'a, a[href*=kobato]',
-    { color: (on ? light.color.link : dark.color.link) }
-  );
-  waitress(
-    'a:hover, a[href*=kobato]:hover',
-    { color: (on ? light.color.linkHover : dark.color.linkHover) + ' !important' }
+    { color: (on ? light.color.link : dark.color.link) + ' !important' },
+    function() {
+      var a = document.getElementsByTagName('a'),
+      setter = function(el, e) {
+        el.style.setProperty(
+          'color',
+          ((/r$/).test(e) ? (on ? light.color.linkHover : dark.color.linkHover)
+          : (on ? light.color.link : dark.color.link)),
+          'important'
+        );
+      };
+      ['mouseenter', 'mouseleave'].forEach(function(e){
+        Array.from(a).forEach(function(el){ el.addEventListener(e, function() { setter(el, e); }); });
+      });
+    }
   );
 
 };
