@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.422
+// @version        0.43
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -22,6 +22,7 @@ var dark = {
     linkHover: 'rgb(248, 210, 196)'
   },
   bg: 'rgb(117, 72, 55)',
+  mid: 'rgb(88, 55, 42)',
   wrap: 'rgb(59, 36, 30)',
   tint: function(a) { return 'hsla(14, 43%, 56%, ' + (a || 1) + ')'; }
 };
@@ -34,6 +35,7 @@ var light = {
     linkHover: 'rgb(180, 130, 100)'
   },
   bg: 'rgb(195, 147, 104)',
+  mid: 'rgb(207, 168, 134)',
   wrap: 'rgb(219, 190, 164)',
   tint: function(a) { return 'hsla(30, 30%, 77%, ' + (a || 1) + ')'; }
 };
@@ -41,45 +43,80 @@ var light = {
 var css = {};
 css.nodes = {};
 
+var fix = {
+  bg: function(i) {
+    return({ background: 'transparent' + ((i && i === '!') ? ' !important' : '') });
+  },
+  color: function(i) {
+    return({ color: 'inherit' + ((i && i === '!') ? ' !important' : '') });
+  },
+  bgandcolor: function(b, c) { return(Object.assign(fix.bg(b), fix.color(c))); }
+};
+
+function inputStyle() {
+  // input
+  css.input = {};
+  css.nodes.input = {
+    i: [
+      'input',
+      '#page input',
+      '#page textarea',
+      '#page #respond #submit',
+      '#page #comments textarea',
+      '#branding #searchform > input#s'
+    ],
+    focus: [
+      'input:focus',
+      '#page input:focus',
+      '#page textarea:focus',
+      '#page #respond #submit:focus',
+      '#page #comments textarea:focus',
+      '#branding #searchform > input#s:focus'
+    ],
+    placeholder: '::placeholder'
+  };
+  // here array becomes object key... as string. and no error smh
+  css.input[css.nodes.input.i] = {
+    background: light.tint(0.2),
+    border: '1px solid ' + dark.tint(),
+    borderRadius: '4px',
+    color: 'inherit !important'
+  };
+  css.input[css.nodes.input.focus] = { background: dark.tint(0.3) };
+  css.input[css.nodes.input.placeholder] = fix.color();
+
+  waitress.style(css.input);
+}
+
+waitress(['input', 'textarea'], function() { inputStyle(); });
+
 var headRules = function() {
   if((/interactive|complete/).test(document.readyState) && !headRules.applied) {
 
+    //fix for social buttons
+    (function(){
+      var ss = document.getElementsByTagName('ss'),
+          i = document.getElementsByTagName('i'),
+          bg = function(e) {
+            return e.style.setProperty(
+              'background', window.getComputedStyle(e).background, 'important'
+            );
+          };
+      [].forEach.call(ss, function(e){ bg(e); });
+      [].forEach.call(i, function(e){ bg(e); });
+    })();
+
     //globals
+    document.getElementsByTagName("html")[0].setAttribute("id", "html");
     waitress.style({
-      '*, a, #page *, #page a': {
-        color: 'inherit',
-        background: 'transparent'
+      'html#html': {
+        margin: '0 !important',
+        color: window.getComputedStyle(document.body).color,
+        backgroundColor: window.getComputedStyle(document.body).backgroundColor
       },
-      '#page li a': {
-        color: 'inherit !important',
-        background: 'transparent !important'
-      }
+      '*, a, #page *, #page a': fix.bgandcolor(),
+      '#page li a': fix.bgandcolor('!', '!')
     });
-
-    css.input = {};
-    css.nodes.input = {
-      i: [
-        'input',
-        '#page input',
-        '#page textarea',
-        '#branding #searchform > input#s'
-      ],
-      focus: [
-        'input:focus',
-        '#page input:focus',
-        '#page textarea:focus',
-        '#branding #searchform > input#s:focus'
-      ]
-    };
-    // here array becomes object key... as string. and no error smh
-    css.input[css.nodes.input.i] = {
-      background: light.tint(0.5),
-      border: '1px solid ' + dark.tint(),
-      borderRadius: '4px'
-    };
-    css.input[css.nodes.input.focus] = { background: light.tint() };
-
-    waitress.style(css.input);
 
 
     // navbar submenu
@@ -106,10 +143,7 @@ var headRules = function() {
         fontSize: '0.5rem',
         lineHeight: '0.5rem'
       },
-      '#header-menu li[id^=\'menu\'], #header-menu li[id^=\'menu\'] > a': {
-        color: 'inherit !important',
-        background: 'transparent'
-      },
+      '#header-menu li[id^=\'menu\'], #header-menu li[id^=\'menu\'] > a': fix.bgandcolor('', '!'),
       '#header-menu li.menu-item:hover::before': {
         content: '\'\'',
         position: 'absolute',
@@ -136,7 +170,8 @@ var headRules = function() {
           '.widget > ul',
           '.widget > ul > li',
           '#page .widget > ul > li > a'
-        ].join(', ')
+        ].join(', '),
+        widgetlinks: '#page .widget a'
       };
       css.wrap[css.nodes.wrap.wrapper] = {
         display: 'flex',
@@ -159,10 +194,8 @@ var headRules = function() {
         flex: '0 1 auto',
         color: 'inherit !important'
       };
-      css.wrap[css.nodes.wrap.widgets] = {
-        background: 'transparent !important',
-        color: 'inherit !important'
-      };
+      css.wrap[css.nodes.wrap.widgets] = fix.bgandcolor('!', '!');
+      css.wrap[css.nodes.wrap.widgetlinks] = fix.color('!');
 
       waitress.style(css.wrap);
     }
@@ -176,31 +209,42 @@ var headRules = function() {
         '#comments > .commentlist',
         '#comments > .commentlist > .comment',
         'article[id^=\'comment\']',
-        'article[id^=\'comment\'] + .children'
+        'article[id^=\'comment\'] + .children',
+        '#page #comments-title'
       ].join(', '),
       tinted: [
         'article[id^=\'comment\'] + .children > .comment',
         '#author-info'
       ].join(', '),
-      comment: '#page #comments .comment article'
+      comment: '#page #comments .comment article',
+      orFB: '#respond li[id^=theChampTabs]'
     };
-    css.comments[css.nodes.comments.main] = {
-      background: 'transparent !important',
-      color: 'inherit !important'
-    };
+    css.comments[css.nodes.comments.main] = fix.bgandcolor('!', '!');
     css.comments[css.nodes.comments.tinted] = {
       background: dark.tint(0.3) + ' !important',
       color: 'inherit !important'
     };
     css.comments[css.nodes.comments.comment] = {
-      borderBottom: '4px solid' + dark.tint(),
+      borderBottom: '4px solid ' + dark.tint(),
       borderRadius: '4px'
     };
+    css.comments[css.nodes.comments.orFB] = fix.bgandcolor('!', '!');
 
     waitress.style(css.comments);
 
     // author/tl notes
-    waitress.style({'#page li[dir=\'ltr\']': { background: dark.tint(0.5) + ' !important' }});
+    waitress.style({
+      '#page .footnotes, #page .footnotes ol, #page .footnotes li': Object.assign({
+        fontSize: '0.8rem',
+        lineHeight: '1.2rem'
+      }, fix.bgandcolor('', '!')),
+      '#page .entry-content ol': { color: 'inherit !important' },
+      '#page li[dir=\'ltr\'], #page li[id^=fn]': {
+        background: dark.tint(0.5) + ' !important',
+        borderRight: '4px solid ' + dark.tint(),
+        color: 'inherit !important'
+      }
+    });
 
     headRules.applied = true;
   }
@@ -218,17 +262,18 @@ if(/prologue|chapter/.test(window.location.pathname)) {
 waitress('#wpadminbar, #header-image', { display: 'none' });
 waitress('.content-sidebar-wrap', { width: '100% !important' });
 waitress('#primary', {
-  width: '33rem',
+  width: '34rem',
   minWidth: '50vw',
   maxWidth: '90vw',
   minHeight: '33rem',
   float: 'none',
   margin: '0 auto',
-  boxShadow: '0 0 3rem 0 hsla(0, 0%, 6%, .6)'
+  border: '1rem solid',
+  borderBottomWidth: '0.3rem',
+  borderTopWidth: '0.3rem'
 });
-waitress('html', { marginTop: '0 !important' });
 waitress('p', { fontSize: '1rem', lineHeight: '1.3rem', marginBottom: '1.8rem' });
-waitress('a[href*=kobato], a[href="/"], li[id^=menu]', { background: 'transparent !important' });
+waitress('a[href*=kobato], a[href="/"], li[id^=menu]', Object.assign({}, fix.bg('!')));
 
 
 var lights = function(daytime) {
@@ -255,12 +300,16 @@ var lights = function(daytime) {
     { background: (on ? light.bg : dark.bg) + ' !important' }
   );
 
+  // page border
+  waitress('#primary', { borderColor: (on ? light.mid : dark.mid) });
+
   // color of the reading text
   waitress(
     [
       'article[id^=post]',
       '#content',
       'h1',
+      'hr',
       'p',
       'span',
       'strong',
@@ -268,6 +317,10 @@ var lights = function(daytime) {
     ].join(', '),
     { color: (on ? light.color.all : dark.color.all) + ' !important' }
   );
+  waitress('hr', {
+    background: (on ? light.color.all : dark.color.all) + ' !important',
+    height: '0.1rem'
+  });
 
   // buttons from libs
   waitress(
