@@ -11,7 +11,7 @@ var waitress = function(master, job, support) {
   };
 
 
-  waitress.style = function(obj, parent) {
+  waitress.style = function(obj, parent, tagname) {
   // adds <style> tag into parent or head with obj key as node(s) and vals as css
     Object.keys(obj).forEach(function(node, id) {
       var css = Object.values(obj)[id];
@@ -24,7 +24,7 @@ var waitress = function(master, job, support) {
         tag = document.createElement('style');
         (parent && parent.insertBefore(tag, parent.lastElementChild))
         || document.head.insertBefore(tag, document.head.lastElementChild);
-        tag.setAttribute("name", Object.keys(obj)[0] + "_style");
+        tag.setAttribute("name", tagname || (Object.keys(obj)[0] + "_style"));
       } else {
         tag = assign();
       }
