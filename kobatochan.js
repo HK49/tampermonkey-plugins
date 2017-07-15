@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.43
+// @version        0.5
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -44,9 +44,6 @@ const css = {};
 const nodes = {};
 ///TODO should just place all css in css and attach it
 
-// remove custom css
-waitress('#wp-custom-css', () => document.getElementById('wp-custom-css').remove());
-
 const fix = {
   i: (i) => ((i && i === '!') ? ' !important' : ''),
   bg: (i) => ({ background: 'transparent' + fix.i(i) }),
@@ -54,10 +51,17 @@ const fix = {
   bgandcolor: (b, c) => Object.assign(fix.bg(b), fix.color(c))
 };
 
-function inputStyle() {
-  // input
+
+// remove custom css
+waitress('#wp-custom-css', () => document.getElementById('wp-custom-css').remove());
+waitress('#dark-css', () => document.getElementById('dark-css').remove());
+waitress('#text-21', () => document.getElementById('text-21').remove());
+
+
+// input
+(() => {
   css.input = {};
-  nodes.input = {
+  const input = {
     i: [
       'input',
       '#page input',
@@ -71,254 +75,268 @@ function inputStyle() {
     ph: '::placeholder',
     phH: ':hover::placeholder'
   };
-  nodes.input.focus = nodes.input.i.map((i) => i + ':focus');
-  nodes.input.hover = nodes.input.i.map((i) => i + ':hover:not(:focus)');
+  input.focus = input.i.map((i) => i + ':focus');
+  input.hover = input.i.map((i) => i + ':hover:not(:focus)');
 
-  css.input[nodes.input.i] = Object.assign({
+  css.input[input.i] = Object.assign({
     background: dark.tint(0.2),
     border: '1px solid ' + dark.tint(),
     borderRadius: '4px',
     boxShadow: 'none',
     font: 'normal 0.8rem/1rem Arial, "sans-serif"',
+    padding: '.5rem',
     textShadow: 'none',
     transition: 'background-color .4s ease'
   }, fix.color('!'));
-  css.input[nodes.input.focus] = { background: dark.tint(0.4) };
-  css.input[nodes.input.hover] = { background: light.tint(0.1) };
-  css.input[nodes.input.form] = { overflow: 'hidden' };
-  css.input[nodes.input.ph] = Object.assign(
+  css.input[input.focus] = { background: dark.tint(0.4) };
+  css.input[input.hover] = { background: light.tint(0.1) };
+  css.input[input.form] = { overflow: 'hidden' };
+  css.input[input.ph] = Object.assign(
     { transition: 'transform .8s ease-in-out' },
     fix.color()
   );
-  css.input[nodes.input.phH] = { transform: 'translateX(200%)' };
+  css.input[input.phH] = { transform: 'translateX(200%)' };
 
-  waitress.style(css.input);
-}
-
-waitress(['input', 'textarea'], inputStyle);
+  waitress(['input', 'textarea'], waitress.style(css.input, false, 'input_style'));
+})();
 
 
 // navbar
-const nav = {};
-css.nav = {};
-nav.head = '#header-menu';
-nav.root = nav.head + ' > nav';
-nav.wrap = nav.root + ' > .wrapper';
-nav.menu = nav.wrap + ' > .menu';
-nav.item = nav.menu + ' .menu-item';
-nav.link = nav.item + ' > a';
-nav.subm = nav.link + ' + .sub-menu';
-nav.subl = nav.subm + ' > li';
-nav.subs = nav.subl + ' > a';
-nav.hoverLink = nav.item + ':hover' + ' > .sub-menu';
-nav.hoverSubm = nav.subm + ':hover';
-nav.hoverSubs = nav.subm + ' > li:hover::before';
+(() => {
+  const nav = {};
+  css.nav = {};
+  nav.head = '#header-menu';
+  nav.root = nav.head + ' > nav';
+  nav.wrap = nav.root + ' > .wrapper';
+  nav.menu = nav.wrap + ' > .menu';
+  nav.item = nav.menu + ' .menu-item';
+  nav.link = nav.item + ' > a';
+  nav.subm = nav.link + ' + .sub-menu';
+  nav.subl = nav.subm + ' > li';
+  nav.subs = nav.subl + ' > a';
+  nav.submsubm = nav.subs + ' + .sub-menu';
+  nav.hoverLink = nav.item + ':hover' + ' > .sub-menu';
+  nav.hoverSubm = nav.subm + ':hover';
+  nav.hoverSubs = nav.subm + ' > li:hover::before';
 
-css.nav[nav.wrap] = { width: '100%' };
-css.nav[nav.menu] = {
-  display: 'inline-flex',
-  flexFlow: 'row wrap',
-  width: '100%'
-};
-css.nav[nav.item] = {
-  display: 'flex',
-  flex: '1 0 auto'
-};
-css.nav[nav.link] = {
-  fontSize: '.7rem',
-  lineHeight: '1.65rem',
-  margin: '0 auto',
-  padding: '0 .3rem',
-  width: 'max-content'
-};
-css.nav[nav.subm] = {
-  boxShadow: 'none',
-  display: 'flex',
-  position: 'absolute',
-  flexFlow: 'column nowrap',
-  left: '.1rem',
-  maxHeight: '0',
-  maxWidth: '12rem',
-  opacity: '0',
-  top: 'calc(1.65rem * 2)',
-  transition: 'all .5s ease',
-  width: 'auto'
-};
-css.nav[[nav.hoverLink, nav.hoverSubm]] = {
-  maxHeight: 1e4 + 'px !important',
-  top: '1.65rem'
-};
-css.nav[nav.hoverLink] = { opacity: '.7' };
-css.nav[nav.hoverSubm] = { opacity: '1' };
-css.nav[nav.subl] = { borderLeft: '.2rem solid' };
-css.nav[nav.subl + '::after'] = {
-  borderColor: 'inherit',
-  borderTop: '.1rem solid',
-  bottom: '-.1rem',
-  content: '\'\'',
-  left: '-.2rem',
-  position: 'absolute',
-  transition: 'width .5s 1s ease-out',
-  width: '0'
-};
-css.nav[
-  [nav.hoverLink, nav.hoverSubm].map((e) => e + ' > li::after')
-] = { width: 'calc(100% + .2rem)' };
-css.nav[nav.subs] = {
-  borderBottom: 'none',
-  fontSize: '.6rem',
-  lineHeight: '1.6rem',
-  margin: '0'
-};
-css.nav[nav.hoverSubs] = {
-  background: dark.tint(0.8),
-  content: '\'\'',
-  height: '100%',
-  position: 'absolute',
-  width: '100%',
-  zIndex: '-1'
-};
-css.nav[nav.subm + '::before'] = {
-  borderLeft: '.2rem solid',
-  borderColor: 'inherit',
-  content: '\'\'',
-  height: '1.65rem',
-  position: 'absolute',
-  top: '0',
-  transition: 'all .5s .5s ease'
-};
-css.nav[[nav.hoverLink, nav.hoverSubm].map((e) => e + '::before')] = { top: '-1.65rem' };
+  css.nav[nav.wrap] = { width: '100%' };
+  css.nav[nav.menu] = {
+    display: 'inline-flex',
+    flexFlow: 'row wrap',
+    width: '100%'
+  };
+  css.nav[nav.item] = {
+    display: 'flex',
+    flex: '1 0 auto'
+  };
+  css.nav[nav.link] = {
+    fontSize: '.7rem',
+    lineHeight: '1.65rem',
+    margin: '0 auto',
+    padding: '0 .3rem',
+    width: 'max-content'
+  };
+  css.nav[nav.subm] = {
+    boxShadow: 'none',
+    display: 'flex',
+    position: 'absolute',
+    flexFlow: 'column nowrap',
+    left: '.1rem',
+    maxHeight: '0',
+    maxWidth: '12rem',
+    opacity: '0',
+    overflow: 'hidden',
+    top: 'calc(1.65rem * 2)',
+    transition: 'all .5s ease',
+    width: 'auto'
+  };
+  css.nav[[nav.hoverLink, nav.hoverSubm]] = {
+    maxHeight: 1e4 + 'px !important',
+    overflow: 'visible',
+    top: '1.65rem'
+  };
+  css.nav[nav.hoverLink] = { opacity: '.7' };
+  css.nav[nav.hoverSubm] = { opacity: '1' };
+  css.nav[nav.subl] = {
+    borderLeft: '.2rem solid',
+    zIndex: '1'
+  };
+  css.nav[nav.subl + '::after'] = {
+    borderColor: 'inherit',
+    borderTop: '.1rem solid',
+    bottom: '0',
+    content: '\'\'',
+    left: '-.2rem',
+    position: 'absolute',
+    transition: 'width .5s 1s ease-out',
+    width: '0'
+  };
+  css.nav[
+    [nav.hoverLink, nav.hoverSubm].map((e) => e + ' > li::after')
+  ] = { width: 'calc(100% + .2rem)' };
+  css.nav[nav.subs] = {
+    borderBottom: 'none',
+    fontSize: '.6rem',
+    lineHeight: '1.6rem',
+    margin: '0'
+  };
+  css.nav[nav.hoverSubs] = {
+    background: dark.tint(0.8),
+    content: '\'\'',
+    height: '100%',
+    position: 'absolute',
+    top: '0',
+    width: '100%',
+    zIndex: '-1'
+  };
+  css.nav[nav.subm + '::before'] = {
+    borderLeft: '.2rem solid',
+    borderColor: 'inherit',
+    content: '\'\'',
+    height: '1.65rem',
+    position: 'absolute',
+    top: '0',
+    transition: 'all .5s .5s ease'
+  };
+  css.nav[[nav.hoverLink, nav.hoverSubm].map((e) => e + '::before')] = { top: '-1.65rem' };
+  css.nav[nav.submsubm] = { top: 'calc(1.6rem * 3)', zIndex: '-1' };
+  css.nav[
+    [
+      [nav.subl, nav.submsubm].map((e) => e + ':hover'),
+      nav.subl + ':hover > a + .submenu'
+    ].join(',')
+  ] = { zIndex: '2' };
+  css.nav[
+    [nav.submsubm + ':hover', nav.subl + ':hover > a + .sub-menu'].join(',')
+  ] = { top: '1.6rem' };
+  css.nav[nav.submsubm + ' > li > a'] = { lineHeight: '1.6rem' };
 
-waitress('nav', waitress.style(css.nav));
-
-
-function headRules() {
-  if((/interactive|complete/).test(document.readyState)) {
-
-    //fix for social buttons
-    (function iss(){
-      ['i', 'ss'].forEach((e) => { iss[e] = document.getElementsByTagName(e); });
-      Array.from(iss.i).concat(Array.from(iss.ss)).forEach((e) => {
-        e.style.setProperty(
-          'background', window.getComputedStyle(e).background, 'important'
-        );
-      });
-    })();
-
-    //globals
-    waitress.style({
-      '*, a, #page *, #page a': fix.bgandcolor(),
-      '#page li a': fix.bg('!')
-    });
-
-
-    if(!(/prologue|chapter/).test(window.location.pathname)) {
-      // homepage
-      css.home = {};
-      nodes.home = {
-        content: '.home #content',
-        article: '.home #content article'
-      };
-      css.home[nodes.home.content] = { borderColor: 'inherit' };
-      css.home[nodes.home.article] = {
-        borderBottom: '0.2rem solid',
-        borderColor: 'inherit',
-        borderRadius: '0'
-      };
-      waitress.style(css.home);
-
-      // wrapper and sidebars. (sidebars are not shown when reading)
-      css.wrap = {};
-      nodes.wrap = {
-        wrapper: '#main-wrapper > #main > .wrapper',
-        content: '#main-wrapper > #main > .wrapper > .content-sidebar-wrap',
-        primary: '#primary',
-        secondary: '#secondary',
-        sidebar: '#third-sidebar',
-        widgets: [
-          '.widget',
-          '.widget > .widget-title',
-          '.widget > ul',
-          '.widget > ul > li'
-        ].join(', ')
-      };
-      css.wrap[nodes.wrap.wrapper] = {
-        display: 'flex',
-        flexFlow: 'row-reverse wrap',
-        color: 'inherit !important',
-        width: '100%'
-      };
-      css.wrap[nodes.wrap.content] = {
-        flex: '1 0 calc(33rem + 340px)',
-        display: 'flex',
-        flexFlow: 'row wrap'
-      };
-      css.wrap[nodes.wrap.primary] = { flex: '0 0 33rem' };
-      css.wrap[nodes.wrap.secondary] = {
-        flex: '0 1 auto',
-        color: 'inherit !important'
-      };
-      css.wrap[nodes.wrap.sidebar] = {
-        display: 'block',
-        flex: '0 1 auto',
-        color: 'inherit !important'
-      };
-      css.wrap[nodes.wrap.widgets] = fix.bgandcolor('!', '!');
-
-      waitress.style(css.wrap);
-    }
+  waitress('nav', waitress.style(css.nav, false, 'navbar_style'));
+})();
 
 
-    // comments
-    css.comments = {};
-    nodes.comments = {
-      main: [
-        '#comments',
-        '#comments > .commentlist',
-        '#comments > .commentlist > .comment',
-        'article[id^=\'comment\']',
-        'article[id^=\'comment\'] + .children',
-        '#page #comments-title'
-      ],
-      tinted: [
-        'article[id^=\'comment\'] + .children > .comment',
-        '#author-info'
-      ],
-      comment: '#page #comments .comment article',
-      orFB: '#respond li[id^=theChampTabs]'
+//fix for social buttons
+waitress(['i', 'ss'], (iss = {}) => {
+  ['i', 'ss'].forEach((e) => { iss[e] = document.getElementsByTagName(e); });
+  Array.from(iss.i).concat(Array.from(iss.ss)).forEach((e) => {
+    e.style.setProperty(
+      'background', window.getComputedStyle(e).background, 'important'
+    );
+  });
+});
+
+
+//globals
+//waitress('#page', waitress.style({ '*, a, #page *, #page a': fix.bgandcolor() }));
+waitress('#page', waitress.style({ '*, a, #page *, #page a': fix.color() }));
+
+if(!(/prologue|chapter/).test(window.location.pathname)) {
+  (() => {
+    // homepage
+    css.home = {};
+    nodes.home = {
+      content: '.home #content',
+      article: '.home #content article'
     };
-    css.comments[nodes.comments.main] = fix.bgandcolor('!', '!');
-    css.comments[nodes.comments.tinted] = {
-      background: dark.tint(0.3) + ' !important',
+    css.home[nodes.home.content] = { borderColor: 'inherit' };
+    css.home[nodes.home.article] = {
+      borderBottom: '0.2rem solid',
+      borderColor: 'inherit',
+      borderRadius: '0'
+    };
+    waitress.style(css.home, false, 'homepage_style');
+
+
+    // wrapper and sidebars. (sidebars are not shown when reading)
+    css.wrap = {};
+    nodes.wrap = {
+      wrapper: '#main-wrapper > #main > .wrapper',
+      content: '#main-wrapper > #main > .wrapper > .content-sidebar-wrap',
+      primary: '#primary',
+      secondary: '#secondary',
+      sidebar: '#third-sidebar',
+      widgets: [
+        '.widget',
+        '.widget > .widget-title',
+        '.widget > ul',
+        '.widget > ul > li'
+      ]
+    };
+    css.wrap[nodes.wrap.wrapper] = {
+      display: 'flex',
+      flexFlow: 'row-reverse wrap',
+      color: 'inherit !important',
+      width: '100%'
+    };
+    css.wrap[nodes.wrap.content] = {
+      flex: '1 0 calc(33rem + 340px)',
+      display: 'flex',
+      flexFlow: 'row wrap'
+    };
+    css.wrap[nodes.wrap.primary] = { flex: '0 0 33rem' };
+    css.wrap[nodes.wrap.secondary] = {
+      flex: '0 1 auto',
       color: 'inherit !important'
     };
-    css.comments[nodes.comments.comment] = {
-      borderBottom: '4px solid ' + dark.tint(),
-      borderRadius: '4px'
+    css.wrap[nodes.wrap.sidebar] = {
+      display: 'block',
+      flex: '0 1 auto',
+      color: 'inherit !important'
     };
-    css.comments[nodes.comments.orFB] = fix.bgandcolor('!', '!');
+    css.wrap[nodes.wrap.widgets] = fix.bgandcolor('!', '!');
 
-    waitress.style(css.comments);
-
-    // author/tl notes
-    waitress.style({
-      '#page .footnotes, #page .footnotes ol, #page .footnotes li': Object.assign({
-        fontSize: '0.8rem',
-        lineHeight: '1.2rem'
-      }, fix.bgandcolor('', '!')),
-      '#page .entry-content ol': { color: 'inherit !important' },
-      '#page li[dir=\'ltr\'], #page li[id^=fn]': {
-        background: dark.tint(0.5) + ' !important',
-        borderRight: '4px solid ' + dark.tint(),
-        color: 'inherit !important'
-      }
-    });
-
-    document.removeEventListener('readystatechange', headRules, false);
-  }
+    waitress.style(css.wrap, false, 'main_layout_style');
+  })();
 }
 
-document.addEventListener('readystatechange', headRules, false);
+
+// comments
+(() => {
+  css.comments = {};
+  nodes.comments = {
+    main: [
+      '#comments',
+      '#comments > .commentlist',
+      '#comments > .commentlist > .comment',
+      'article[id^=\'comment\']',
+      'article[id^=\'comment\'] + .children',
+      '#page #comments-title'
+    ],
+    tinted: [
+      'article[id^=\'comment\'] + .children > .comment',
+      '#author-info'
+    ],
+    comment: '#page #comments .comment article',
+    orFB: '#respond li[id^=theChampTabs]'
+  };
+  css.comments[nodes.comments.main] = fix.bgandcolor('!', '!');
+  css.comments[nodes.comments.tinted] = {
+    background: dark.tint(0.3) + ' !important',
+    color: 'inherit !important'
+  };
+  css.comments[nodes.comments.comment] = {
+    borderBottom: '4px solid ' + dark.tint(),
+    borderRadius: '4px'
+  };
+  css.comments[nodes.comments.orFB] = fix.bgandcolor('!', '!');
+
+  waitress('#comments', waitress.style(css.comments, false, 'comments_style'));
+})();
+
+
+// author/tl notes
+waitress('.footnotes', waitress.style({
+  '#page .footnotes, #page .footnotes ol, #page .footnotes li': Object.assign({
+    fontSize: '0.8rem',
+    lineHeight: '1.2rem'
+  }, fix.bgandcolor('', '!')),
+  '#page .entry-content ol': { color: 'inherit !important' },
+  '#page li[dir=\'ltr\'], #page li[id^=fn]': {
+    background: dark.tint(0.5) + ' !important',
+    borderRight: '4px solid ' + dark.tint(),
+    color: 'inherit !important'
+  }
+}, false, 'footnotes_style'));
 
 
 // don't display sidebars when reading
@@ -350,6 +368,8 @@ waitress('style[media="screen"]',
   }
 );
 
+// remove bg of topbtn
+waitress('#scrollup', (() => fix.bg('!'))());
 
 function lights(daytime) {
   const on = (daytime === "day");
@@ -369,6 +389,7 @@ function lights(daytime) {
       '.content-sidebar-wrap',
       'html',
       '#main',
+      '#site-generator',
       '.sub-menu',
       '.wrapper'
     ],
@@ -419,12 +440,15 @@ function lights(daytime) {
 
   //checkboxes
   waitress('input', () => waitress.style({
-    'input[type="checkbox"]': { position: 'relative' },
+    'input[type="checkbox"]': {
+      position: 'relative',
+      width: 'initial !important'
+    },
     'input[type="checkbox"]::before, input[type="checkbox"]:checked::after': {
       content: '\'\'',
       cursor: 'pointer',
       position: 'absolute',
-      border: '2px solid ' + (on ? dark.tint() : light.tint())
+      border: '2px solid ' + (on ? dark.tint() : dark.color.btn)
     },
     'input[type="checkbox"]::before': {
       left: '55%',
@@ -432,7 +456,7 @@ function lights(daytime) {
       height: '110%',
       borderRadius: '4px',
       transform: 'translateX(-55%)',
-      background: (on ? light.color.btn : dark.color.btn)
+      background: (on ? light.color.btn : dark.tint())
     },
     'input[type="checkbox"]:checked::after': {
       width: '50%',
@@ -442,7 +466,6 @@ function lights(daytime) {
       transform: 'rotate(-45deg) translateY(120%) translateX(-10%)'
     }
   }, false, 'checkbox_style' ));
-
 }
 
 // btn from daynight.js
