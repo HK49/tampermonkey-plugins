@@ -18,7 +18,7 @@ var waitress = function(master, job, support) {
 
       // create new style tag or get existant (by the first key in hash)
       var tag, assign = function() {
-        return document.getElementsByName(Object.keys(obj)[0] + "_style")[0];
+        return document.getElementsByName(tagname || (Object.keys(obj)[0] + "_style"))[0];
       };
       if(!assign()) {
         tag = document.createElement('style');
