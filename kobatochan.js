@@ -78,10 +78,10 @@ function inputStyle() {
     background: dark.tint(0.2),
     border: '1px solid ' + dark.tint(),
     borderRadius: '4px',
-    transition: 'background-color .4s ease',
+    boxShadow: 'none',
     font: 'normal 0.8rem/1rem Arial, "sans-serif"',
     textShadow: 'none',
-    boxShadow: 'none'
+    transition: 'background-color .4s ease'
   }, fix.color('!'));
   css.input[nodes.input.focus] = { background: dark.tint(0.4) };
   css.input[nodes.input.hover] = { background: light.tint(0.1) };
@@ -108,107 +108,88 @@ nav.menu = nav.wrap + ' > .menu';
 nav.item = nav.menu + ' .menu-item';
 nav.link = nav.item + ' > a';
 nav.subm = nav.link + ' + .sub-menu';
-nav.subs = nav.subm + ' > li > a';
-nav.hoverLink = nav.link + ':hover' + ' + .sub-menu';
+nav.subl = nav.subm + ' > li';
+nav.subs = nav.subl + ' > a';
+nav.hoverLink = nav.item + ':hover' + ' > .sub-menu';
 nav.hoverSubm = nav.subm + ':hover';
 nav.hoverSubs = nav.subm + ' > li:hover::before';
 
 css.nav[nav.wrap] = { width: '100%' };
 css.nav[nav.menu] = {
-  width: '100%',
   display: 'inline-flex',
-  flexFlow: 'row wrap'
+  flexFlow: 'row wrap',
+  width: '100%'
 };
 css.nav[nav.item] = {
-  flex: '1 0 auto',
-  width: 'min-content'
+  display: 'flex',
+  flex: '1 0 auto'
 };
 css.nav[nav.link] = {
-  width: 'min-content',
-  padding: '0 .3rem',
   fontSize: '.7rem',
-  margin: '0 auto'
+  lineHeight: '1.65rem',
+  margin: '0 auto',
+  padding: '0 .3rem',
+  width: 'max-content'
 };
 css.nav[nav.subm] = {
-  display: 'block',
-  maxHeight: '0',
-  overflow: 'hidden',
-  transition: 'all .5s ease',
   boxShadow: 'none',
-  top: '5rem',
-  left: '5rem',
-  opacity: '0'
+  display: 'flex',
+  position: 'absolute',
+  flexFlow: 'column nowrap',
+  left: '.1rem',
+  maxHeight: '0',
+  maxWidth: '12rem',
+  opacity: '0',
+  top: 'calc(1.65rem * 2)',
+  transition: 'all .5s ease',
+  width: 'auto'
 };
-css.nav[nav.hoverLink + ',' + nav.hoverSubm] = {
+css.nav[[nav.hoverLink, nav.hoverSubm]] = {
   maxHeight: 1e4 + 'px !important',
-  top: '1.6rem',
-  left: '.8rem'
+  top: '1.65rem'
 };
 css.nav[nav.hoverLink] = { opacity: '.7' };
 css.nav[nav.hoverSubm] = { opacity: '1' };
+css.nav[nav.subl] = { borderLeft: '.2rem solid' };
+css.nav[nav.subl + '::after'] = {
+  borderColor: 'inherit',
+  borderTop: '.1rem solid',
+  bottom: '-.1rem',
+  content: '\'\'',
+  left: '-.2rem',
+  position: 'absolute',
+  transition: 'width .5s 1s ease-out',
+  width: '0'
+};
+css.nav[
+  [nav.hoverLink, nav.hoverSubm].map((e) => e + ' > li::after')
+] = { width: 'calc(100% + .2rem)' };
 css.nav[nav.subs] = {
   borderBottom: 'none',
-  fontSize: '0.6rem',
-  lineHeight: '0.7rem'
+  fontSize: '.6rem',
+  lineHeight: '1.6rem',
+  margin: '0'
 };
 css.nav[nav.hoverSubs] = {
+  background: dark.tint(0.8),
   content: '\'\'',
-  position: 'absolute',
-  zIndex: '-1',
-  width: '100%',
   height: '100%',
-  background: dark.tint(0.8)
+  position: 'absolute',
+  width: '100%',
+  zIndex: '-1'
 };
+css.nav[nav.subm + '::before'] = {
+  borderLeft: '.2rem solid',
+  borderColor: 'inherit',
+  content: '\'\'',
+  height: '1.65rem',
+  position: 'absolute',
+  top: '0',
+  transition: 'all .5s .5s ease'
+};
+css.nav[[nav.hoverLink, nav.hoverSubm].map((e) => e + '::before')] = { top: '-1.65rem' };
 
 waitress('nav', waitress.style(css.nav));
-
-waitress('nav', waitress.style({
-  '#header-menu .wrapper, #header-menu .menu': { width: '100%' },
-  '#header-menu .menu': {
-    display: 'inline-flex',
-    flexFlow: 'row wrap'
-  },
-  '#header-menu .menu li': {
-    flex: '1 0 auto',
-    width: 'min-content'
-  },
-  '#header-menu .menu li a': {
-    width: 'min-content',
-    padding: '0 0.3rem',
-    fontSize: '0.7rem',
-    margin: '0 auto'
-  },
-  '#header-menu .menu-item > a + .sub-menu': {
-    display: 'block',
-    maxHeight: '0',
-    overflow: 'hidden',
-    transition: 'all .5s ease',
-    boxShadow: 'none',
-    top: '5rem',
-    left: '5rem',
-    opacity: '0'
-  },
-  '#header-menu .menu-item > a:hover + ul, #header-menu .menu-item > a + ul:hover': {
-    maxHeight: 1e4 + 'px !important',
-    top: '1.6rem',
-    left: '0.8rem'
-  },
-  '#header-menu .menu-item > a:hover + ul': { opacity: '0.7' },
-  '#header-menu .menu-item > a + ul:hover': { opacity: '1' },
-  '#header-menu ul.menu ul a': {
-    borderBottom: 'none',
-    fontSize: '0.6rem',
-    lineHeight: '0.7rem'
-  },
-  '#header-menu li.menu-item:hover::before': {
-    content: '\'\'',
-    position: 'absolute',
-    zIndex: '-1',
-    width: '100%',
-    height: '100%',
-    background: dark.tint(0.8)
-  }
-}));
 
 
 function headRules() {
