@@ -13,6 +13,9 @@ var waitress = function(master, job, support) {
 
   waitress.style = function(obj, parent, tagname) {
   // adds <style> tag into parent or head with obj key as node(s) and vals as css
+
+  if(!waitress.style.reattach) { waitress.style.reattach = {}; }
+
     Object.keys(obj).forEach(function(node, id) {
       var css = Object.values(obj)[id];
 
@@ -76,6 +79,15 @@ var waitress = function(master, job, support) {
 
       // add new rules
       tag.innerText += structurize(node.toString(), css);
+
+      if(!waitress.style.reattach[obj]) {
+        waitress.style.reattach[obj] = function(t) {
+          return function(){ t.parentNode.appendChild(t, t.parentNode.lastElementChild); };
+        }(tag);
+        document.addEventListener('DOMContentLoaded', waitress.style.reattach[obj]);
+      } else {
+        document.removeEventListener('DOMContentLoaded', waitress.style.reattach[obj]);
+      }
     });
   };
 
