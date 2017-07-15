@@ -14,10 +14,9 @@
 // @run-at         document-start
 // ==/UserScript==
 
-var dark = {
+const dark = {
   color: {
     all: 'rgb(196, 120, 98)',
-    // old: 'rgb(215, 186, 161)',
     btn: 'rgb(243, 181, 157)',
     link: 'rgb(243, 181, 157)',
     linkHover: 'rgb(248, 210, 196)'
@@ -25,41 +24,40 @@ var dark = {
   bg: 'rgb(117, 72, 55)',
   mid: 'rgb(88, 55, 42)',
   wrap: 'rgb(59, 36, 30)',
-  tint: function(a) { return 'hsla(14, 43%, 56%, ' + (a || 1) + ')'; }
+  tint: (a = 1) => 'hsla(14, 43%, 56%, ' + a + ')'
 };
 
-var light = {
+const light = {
   color: {
     all: 'rgb(150, 92, 75)',
-    // old: 'rgb(59, 36, 30)'
     btn: 'rgb(246, 200, 182)',
-    link: 'rgb(146, 89, 79)',
-    linkHover: 'rgb(180, 130, 100)'
+    link: 'rgb(125, 67, 63)',
+    linkHover: 'rgb(71, 38, 36)'
   },
   bg: 'rgb(195, 147, 104)',
   mid: 'rgb(207, 168, 134)',
   wrap: 'rgb(219, 190, 164)',
-  tint: function(a) { return 'hsla(30, 30%, 77%, ' + (a || 1) + ')'; }
+  tint: (a = 1) => 'hsla(30, 30%, 77%, ' + a + ')'
 };
 
-var css = {};
-css.nodes = {};
+const css = {};
+const nodes = {};
 ///TODO should just place all css in css and attach it
 
-var fix = {
-  bg: function(i) {
-    return({ background: 'transparent' + ((i && i === '!') ? ' !important' : '') });
-  },
-  color: function(i) {
-    return({ color: 'inherit' + ((i && i === '!') ? ' !important' : '') });
-  },
-  bgandcolor: function(b, c) { return(Object.assign(fix.bg(b), fix.color(c))); }
+// remove custom css
+waitress('#wp-custom-css', () => document.getElementById('wp-custom-css').remove());
+
+const fix = {
+  i: (i) => ((i && i === '!') ? ' !important' : ''),
+  bg: (i) => ({ background: 'transparent' + fix.i(i) }),
+  color: (i) => ({ color: 'inherit' + fix.i(i) }),
+  bgandcolor: (b, c) => Object.assign(fix.bg(b), fix.color(c))
 };
 
 function inputStyle() {
   // input
   css.input = {};
-  css.nodes.input = {
+  nodes.input = {
     i: [
       'input',
       '#page input',
@@ -69,17 +67,14 @@ function inputStyle() {
       '#page #comments textarea',
       '#branding #searchform > input#s'
     ],
-    placeholder: '::placeholder'
+    form: 'form',
+    ph: '::placeholder',
+    phH: ':hover::placeholder'
   };
-  css.nodes.input.focus = (function() {
-    var arr = [];
-    css.nodes.input.i.forEach(function(i) { arr.push(i + ':focus'); });
+  nodes.input.focus = nodes.input.i.map((i) => i + ':focus');
+  nodes.input.hover = nodes.input.i.map((i) => i + ':hover:not(:focus)');
 
-    return arr;
-  })();
-
-  // here array becomes object key... as string. and no error smh
-  css.input[css.nodes.input.i] = Object.assign({
+  css.input[nodes.input.i] = Object.assign({
     background: dark.tint(0.2),
     border: '1px solid ' + dark.tint(),
     borderRadius: '4px',
@@ -88,21 +83,141 @@ function inputStyle() {
     textShadow: 'none',
     boxShadow: 'none'
   }, fix.color('!'));
-  css.input[css.nodes.input.focus] = { background: dark.tint(0.4) };
-  css.input[css.nodes.input.placeholder] = fix.color();
+  css.input[nodes.input.focus] = { background: dark.tint(0.4) };
+  css.input[nodes.input.hover] = { background: light.tint(0.1) };
+  css.input[nodes.input.form] = { overflow: 'hidden' };
+  css.input[nodes.input.ph] = Object.assign(
+    { transition: 'transform .8s ease-in-out' },
+    fix.color()
+  );
+  css.input[nodes.input.phH] = { transform: 'translateX(200%)' };
 
   waitress.style(css.input);
 }
 
 waitress(['input', 'textarea'], inputStyle);
 
-var headRules = function() {
+
+// navbar
+const nav = {};
+css.nav = {};
+nav.head = '#header-menu';
+nav.root = nav.head + ' > nav';
+nav.wrap = nav.root + ' > .wrapper';
+nav.menu = nav.wrap + ' > .menu';
+nav.item = nav.menu + ' .menu-item';
+nav.link = nav.item + ' > a';
+nav.subm = nav.link + ' + .sub-menu';
+nav.subs = nav.subm + ' > li > a';
+nav.hoverLink = nav.link + ':hover' + ' + .sub-menu';
+nav.hoverSubm = nav.subm + ':hover';
+nav.hoverSubs = nav.subm + ' > li:hover::before';
+
+css.nav[nav.wrap] = { width: '100%' };
+css.nav[nav.menu] = {
+  width: '100%',
+  display: 'inline-flex',
+  flexFlow: 'row wrap'
+};
+css.nav[nav.item] = {
+  flex: '1 0 auto',
+  width: 'min-content'
+};
+css.nav[nav.link] = {
+  width: 'min-content',
+  padding: '0 .3rem',
+  fontSize: '.7rem',
+  margin: '0 auto'
+};
+css.nav[nav.subm] = {
+  display: 'block',
+  maxHeight: '0',
+  overflow: 'hidden',
+  transition: 'all .5s ease',
+  boxShadow: 'none',
+  top: '5rem',
+  left: '5rem',
+  opacity: '0'
+};
+css.nav[nav.hoverLink + ',' + nav.hoverSubm] = {
+  maxHeight: 1e4 + 'px !important',
+  top: '1.6rem',
+  left: '.8rem'
+};
+css.nav[nav.hoverLink] = { opacity: '.7' };
+css.nav[nav.hoverSubm] = { opacity: '1' };
+css.nav[nav.subs] = {
+  borderBottom: 'none',
+  fontSize: '0.6rem',
+  lineHeight: '0.7rem'
+};
+css.nav[nav.hoverSubs] = {
+  content: '\'\'',
+  position: 'absolute',
+  zIndex: '-1',
+  width: '100%',
+  height: '100%',
+  background: dark.tint(0.8)
+};
+
+waitress('nav', waitress.style(css.nav));
+
+waitress('nav', waitress.style({
+  '#header-menu .wrapper, #header-menu .menu': { width: '100%' },
+  '#header-menu .menu': {
+    display: 'inline-flex',
+    flexFlow: 'row wrap'
+  },
+  '#header-menu .menu li': {
+    flex: '1 0 auto',
+    width: 'min-content'
+  },
+  '#header-menu .menu li a': {
+    width: 'min-content',
+    padding: '0 0.3rem',
+    fontSize: '0.7rem',
+    margin: '0 auto'
+  },
+  '#header-menu .menu-item > a + .sub-menu': {
+    display: 'block',
+    maxHeight: '0',
+    overflow: 'hidden',
+    transition: 'all .5s ease',
+    boxShadow: 'none',
+    top: '5rem',
+    left: '5rem',
+    opacity: '0'
+  },
+  '#header-menu .menu-item > a:hover + ul, #header-menu .menu-item > a + ul:hover': {
+    maxHeight: 1e4 + 'px !important',
+    top: '1.6rem',
+    left: '0.8rem'
+  },
+  '#header-menu .menu-item > a:hover + ul': { opacity: '0.7' },
+  '#header-menu .menu-item > a + ul:hover': { opacity: '1' },
+  '#header-menu ul.menu ul a': {
+    borderBottom: 'none',
+    fontSize: '0.6rem',
+    lineHeight: '0.7rem'
+  },
+  '#header-menu li.menu-item:hover::before': {
+    content: '\'\'',
+    position: 'absolute',
+    zIndex: '-1',
+    width: '100%',
+    height: '100%',
+    background: dark.tint(0.8)
+  }
+}));
+
+
+function headRules() {
   if((/interactive|complete/).test(document.readyState)) {
 
     //fix for social buttons
     (function iss(){
-      ['i', 'ss'].forEach(function(e){ iss[e] = document.getElementsByTagName(e); });
-      Array.from(iss.i).concat(Array.from(iss.ss)).forEach(function(e){
+      ['i', 'ss'].forEach((e) => { iss[e] = document.getElementsByTagName(e); });
+      Array.from(iss.i).concat(Array.from(iss.ss)).forEach((e) => {
         e.style.setProperty(
           'background', window.getComputedStyle(e).background, 'important'
         );
@@ -110,63 +225,21 @@ var headRules = function() {
     })();
 
     //globals
-    document.getElementsByTagName("html")[0].setAttribute("id", "html");
     waitress.style({
-      'html#html': {
-        margin: '0 !important',
-        color: window.getComputedStyle(document.body).color,
-        backgroundColor: window.getComputedStyle(document.body).backgroundColor
-      },
       '*, a, #page *, #page a': fix.bgandcolor(),
-      '#page li a': fix.bgandcolor('!', '!')
-    });
-
-
-    // navbar submenu
-    waitress.style({
-      '#header-menu .menu-item > a + ul': {
-        display: 'block',
-        maxHeight: '0',
-        overflow: 'hidden',
-        transition: 'all .5s ease',
-        boxShadow: 'none',
-        top: '5rem',
-        left: '5rem',
-        opacity: '0'
-      },
-      '#header-menu .menu-item > a:hover + ul, #header-menu .menu-item > a + ul:hover': {
-        maxHeight: 1e4 + 'px !important',
-        top: '1.6rem',
-        left: '0.8rem'
-      },
-      '#header-menu .menu-item > a:hover + ul': { opacity: '0.7' },
-      '#header-menu .menu-item > a + ul:hover': { opacity: '1' },
-      '#header-menu ul.menu ul a': {
-        borderBottom: 'none',
-        fontSize: '0.6rem',
-        lineHeight: '0.7rem'
-      },
-      '#header-menu li[id^=\'menu\'], #header-menu li[id^=\'menu\'] > a': fix.bgandcolor('', '!'),
-      '#header-menu li.menu-item:hover::before': {
-        content: '\'\'',
-        position: 'absolute',
-        zIndex: '-1',
-        width: '100%',
-        height: '100%',
-        background: dark.tint(0.8)
-      }
+      '#page li a': fix.bg('!')
     });
 
 
     if(!(/prologue|chapter/).test(window.location.pathname)) {
       // homepage
       css.home = {};
-      css.nodes.home = {
+      nodes.home = {
         content: '.home #content',
         article: '.home #content article'
       };
-      css.home[css.nodes.home.content] = { borderColor: 'inherit' };
-      css.home[css.nodes.home.article] = {
+      css.home[nodes.home.content] = { borderColor: 'inherit' };
+      css.home[nodes.home.article] = {
         borderBottom: '0.2rem solid',
         borderColor: 'inherit',
         borderRadius: '0'
@@ -175,7 +248,7 @@ var headRules = function() {
 
       // wrapper and sidebars. (sidebars are not shown when reading)
       css.wrap = {};
-      css.nodes.wrap = {
+      nodes.wrap = {
         wrapper: '#main-wrapper > #main > .wrapper',
         content: '#main-wrapper > #main > .wrapper > .content-sidebar-wrap',
         primary: '#primary',
@@ -185,34 +258,31 @@ var headRules = function() {
           '.widget',
           '.widget > .widget-title',
           '.widget > ul',
-          '.widget > ul > li',
-          '#page .widget > ul > li > a'
-        ].join(', '),
-        widgetlinks: '#page .widget a'
+          '.widget > ul > li'
+        ].join(', ')
       };
-      css.wrap[css.nodes.wrap.wrapper] = {
+      css.wrap[nodes.wrap.wrapper] = {
         display: 'flex',
         flexFlow: 'row-reverse wrap',
         color: 'inherit !important',
         width: '100%'
       };
-      css.wrap[css.nodes.wrap.content] = {
+      css.wrap[nodes.wrap.content] = {
         flex: '1 0 calc(33rem + 340px)',
         display: 'flex',
         flexFlow: 'row wrap'
       };
-      css.wrap[css.nodes.wrap.primary] = { flex: '0 0 33rem' };
-      css.wrap[css.nodes.wrap.secondary] = {
+      css.wrap[nodes.wrap.primary] = { flex: '0 0 33rem' };
+      css.wrap[nodes.wrap.secondary] = {
         flex: '0 1 auto',
         color: 'inherit !important'
       };
-      css.wrap[css.nodes.wrap.sidebar] = {
+      css.wrap[nodes.wrap.sidebar] = {
         display: 'block',
         flex: '0 1 auto',
         color: 'inherit !important'
       };
-      css.wrap[css.nodes.wrap.widgets] = fix.bgandcolor('!', '!');
-      css.wrap[css.nodes.wrap.widgetlinks] = fix.color('!');
+      css.wrap[nodes.wrap.widgets] = fix.bgandcolor('!', '!');
 
       waitress.style(css.wrap);
     }
@@ -220,7 +290,7 @@ var headRules = function() {
 
     // comments
     css.comments = {};
-    css.nodes.comments = {
+    nodes.comments = {
       main: [
         '#comments',
         '#comments > .commentlist',
@@ -228,24 +298,24 @@ var headRules = function() {
         'article[id^=\'comment\']',
         'article[id^=\'comment\'] + .children',
         '#page #comments-title'
-      ].join(', '),
+      ],
       tinted: [
         'article[id^=\'comment\'] + .children > .comment',
         '#author-info'
-      ].join(', '),
+      ],
       comment: '#page #comments .comment article',
       orFB: '#respond li[id^=theChampTabs]'
     };
-    css.comments[css.nodes.comments.main] = fix.bgandcolor('!', '!');
-    css.comments[css.nodes.comments.tinted] = {
+    css.comments[nodes.comments.main] = fix.bgandcolor('!', '!');
+    css.comments[nodes.comments.tinted] = {
       background: dark.tint(0.3) + ' !important',
       color: 'inherit !important'
     };
-    css.comments[css.nodes.comments.comment] = {
+    css.comments[nodes.comments.comment] = {
       borderBottom: '4px solid ' + dark.tint(),
       borderRadius: '4px'
     };
-    css.comments[css.nodes.comments.orFB] = fix.bgandcolor('!', '!');
+    css.comments[nodes.comments.orFB] = fix.bgandcolor('!', '!');
 
     waitress.style(css.comments);
 
@@ -265,7 +335,7 @@ var headRules = function() {
 
     document.removeEventListener('readystatechange', headRules, false);
   }
-};
+}
 
 document.addEventListener('readystatechange', headRules, false);
 
@@ -290,11 +360,18 @@ waitress('#primary', {
   borderTopWidth: '0.3rem'
 });
 waitress('p', { fontSize: '1rem', lineHeight: '1.3rem', marginBottom: '1.8rem' });
-waitress('a[href*=kobato], a[href="/"], li[id^=menu]', Object.assign({}, fix.bg('!')));
+waitress('a[href*=kobato], a[href="/"], li[id^=menu]', (() => fix.bg('!'))());
+
+//remove 32px margin-top for admin bar
+waitress('style[media="screen"]',
+  (q = document.querySelectorAll('style[media="screen"]')) => {
+    q.forEach((e) => { if((/n-top:.*!i/).test(e.innerText)) { e.remove(); } });
+  }
+);
 
 
-var lights = function(daytime) {
-  var on = (daytime === "day");
+function lights(daytime) {
+  const on = (daytime === "day");
 
   // page with text
   waitress(
@@ -313,7 +390,7 @@ var lights = function(daytime) {
       '#main',
       '.sub-menu',
       '.wrapper'
-    ].join(', '),
+    ],
     { background: (on ? light.bg : dark.bg) + ' !important' }
   );
 
@@ -331,7 +408,7 @@ var lights = function(daytime) {
       'span',
       'strong',
       'time'
-    ].join(', '),
+    ],
     { color: (on ? light.color.all : dark.color.all) + ' !important' }
   );
   waitress('hr', {
@@ -345,37 +422,50 @@ var lights = function(daytime) {
       'body',
       'btn',
       '#btn_full',
+      'html',
       '#page',
       '#main',
       '#night_btn'
-    ].join(', '),
+    ],
     { color: (on ? light.color.btn : dark.color.btn) + ' !important' }
   );
 
-  // all links
-  waitress(
-    'a, a[href*=kobato]',
-    { color: (on ? light.color.link : dark.color.link) + ' !important' },
-    function() {
-      var a = document.getElementsByTagName('a'),
-      setter = function(el, e) {
-        el.style.setProperty(
-          'color',
-          ((/r$/).test(e) ? (on ? light.color.linkHover : dark.color.linkHover)
-          : (on ? light.color.link : dark.color.link)),
-          'important'
-        );
-      };
-      ['mouseenter', 'mouseleave'].forEach(function(e){
-        Array.from(a).forEach(function(el){ el.addEventListener(e, function() { setter(el, e); }); });
-      });
-    }
-  );
+  // links
+  waitress('a', () => waitress.style({
+    'a, a:visited': { color: (on ? light.color.link : dark.color.link) + ' !important' },
+    'a:hover, a:active': { color: (on ? light.color.linkHover : dark.color.linkHover) + ' !important' }
+  }, false, 'links_style'));
 
-};
+  //checkboxes
+  waitress('input', () => waitress.style({
+    'input[type="checkbox"]': { position: 'relative' },
+    'input[type="checkbox"]::before, input[type="checkbox"]:checked::after': {
+      content: '\'\'',
+      cursor: 'pointer',
+      position: 'absolute',
+      border: '2px solid ' + (on ? dark.tint() : light.tint())
+    },
+    'input[type="checkbox"]::before': {
+      left: '55%',
+      width: '110%',
+      height: '110%',
+      borderRadius: '4px',
+      transform: 'translateX(-55%)',
+      background: (on ? light.color.btn : dark.color.btn)
+    },
+    'input[type="checkbox"]:checked::after': {
+      width: '50%',
+      height: '33%',
+      borderTop: 'none',
+      borderRight: 'none',
+      transform: 'rotate(-45deg) translateY(120%) translateX(-10%)'
+    }
+  }, false, 'checkbox_style' ));
+
+}
 
 // btn from daynight.js
-dayNight( (function() { lights("day"); }), (function() { lights("night"); }) );
+dayNight((() => lights("day")), (() => lights("night")));
 
 // btn from fontsize.js
 scaleFont();
