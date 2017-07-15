@@ -3,6 +3,8 @@
 var waitress = function(master, job, support) {
   // waits for master(s) then does job and if support does supportive function once
 
+  if(!waitress.started) { waitress.started = {}; }
+
   var hyphenize = function(prop) {
     // converts fontSize into font-size etc
     return prop.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); });
@@ -95,6 +97,7 @@ var waitress = function(master, job, support) {
 
 
   waitress.wait = function(one) {
+    if(!waitress.started[one]) { waitress.started[one] = Date.now(); }
     var regex = /(:link|:visited|:hover|:active|:?:before|:?:after)$/;
     var clean = one;
     while(regex.test(clean)) { clean = clean.split(regex)[0]; }
@@ -120,8 +123,11 @@ var waitress = function(master, job, support) {
       case (one.startsWith('#', 0) && !!document.getElementById(clean)):
         waitress.act(document.getElementById(one.substr(1)));
         break;
+      case ((Date.now() - waitress.started[one]) > 4e4):
+        window.console.warn("waitress on " + one + " took more then 40s. Exiting.");
+        break;
       default:
-        window.requestAnimationFrame(function() { waitress(one, job, support); });
+        return window.requestAnimationFrame(function() { waitress(one, job, support); });
     }
   };
 
@@ -131,12 +137,10 @@ var waitress = function(master, job, support) {
   var sortie = (master instanceof Array) ? master : master.split(/\s?,\s?/);
 
   // only two types of job could be done: styling and function
-  if(["object", "function"].includes(typeof (job))) {
-    for(var i = 0; i < sortie.length; i++) {
-      waitress.wait(sortie[i]);
-    }
+  if((/object|function/).test(typeof job)) {
+    sortie.forEach(function(node){ waitress.wait(node); });
   } else {
-    window.console.info("waitress function job is unknown.");
+    window.console.warn("waitress function second argument is unknown");
   }
 };
 
