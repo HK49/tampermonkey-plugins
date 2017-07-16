@@ -1,26 +1,31 @@
 function scaleFont() {
-  if(!(/^interactive|complete$/).test(document.readyState)) {
-    window.requestAnimationFrame(scaleFont);
-  } else {
-    var fontSize = +localStorage.fontSize
-    || +window.getComputedStyle(document.getElementsByTagName("html")[0]).fontSize.split('px')[0];
+  Promise.resolve(document.documentElement).then((e) => {
+    const storage = localStorage.fontSize;
+    if(storage) { e.style.fontSize = storage + 'px'; }
 
-    document.getElementsByTagName("html")[0].style.fontSize = fontSize + 'px';
+    return new Promise((resolve) => {
+      if(!document.body) {
+        new Promise((r) => setTimeout(r, 60)).then(scaleFont);
+      } else {
+        resolve({ html: e, body: document.body });
+      }
+    });
+  }).then(({ html, body }) => {
 
-    var impSetter = function(node, rules) {
-      var hyphenize = function(prop) {
-        // converts fontSize into font-size etc
-        return prop.replace(/[A-Z]/g, function(m, o) { return (o ? '-' : '') + m.toLowerCase(); });
-      };
+    let font = Number(
+      localStorage.fontSize || window.getComputedStyle(html).fontSize.split(/\D+/)[0]
+    );
 
-      Object.keys(rules).forEach(function(key) {
-        node.style.setProperty(hyphenize(String(key)), rules[key], 'important');
-      });
+    const impSetter = (node, rules) => {
+      Object.keys(rules).forEach((key) => node.style.setProperty(
+        key.replace(/[A-Z]/g, (l, i) => (i ? '-' : '') + l.toLowerCase()), rules[key], 'important'
+      ));
     };
 
-    var btn = document.createElement("btn");
+    const btn = document.createElement("btn");
     btn.innerText = "A";
     btn.setAttribute("id", "font_btn");
+    btn.setAttribute("title", "Scroll mouse up/down over icon to make root font bigger/smaller.");
     Object.assign(btn.style, {
       position: 'fixed',
       bottom: '10px',
@@ -32,33 +37,30 @@ function scaleFont() {
       zIndex: String(1e4)
     });
     impSetter(btn, { color: 'inherit' });
-    document.body.insertBefore(btn, document.body.firstElementChild);
 
-    ['-', '/', '+'].forEach(function(e) {
-      var span = btn.insertBefore(document.createElement('span'), btn.firstElementChild);
-      span.innerText = e;
-      Object.assign(span.style, {
-        position: 'relative',
-        verticalAlign: 'bottom',
-        opacity: 'inherit'
-      });
+    body.appendChild(btn);
+
+    ['-', '/', '+'].forEach((sym) => {
+      const span = btn.insertBefore(document.createElement('span'), btn.firstElementChild);
+      span.innerText = sym;
+      Object.assign(span.style, { position: 'relative', verticalAlign: 'bottom', opacity: 'inherit' });
       impSetter(span, { color: 'inherit', font: 'inherit', fontSize: '50%' });
-      span.setAttribute("symbol", e);
+      span.setAttribute("symbol", sym);
     });
 
-    var shiny = function(node, symbol) {
-      var shine = node.insertBefore(document.createElement('span'), node.lastElementChild);
+    const shiny = (node, symbol) => {
+      const shine = node.insertBefore(document.createElement('span'), node.lastElementChild);
       shine.innerText = symbol;
       Object.assign(shine.style, { position: 'absolute', left: '0' });
       impSetter(shine, { color: 'inherit', font: 'inherit' });
 
-      var currentSize = btn.insertBefore(document.createElement('span'), btn.lastElementChild);
-      currentSize.innerText = fontSize + 'px';
+      const currentSize = btn.insertBefore(document.createElement('span'), btn.lastElementChild);
+      currentSize.innerText = font + 'px';
       Object.assign(currentSize.style, { position: 'absolute', top: '-30px', left: '-10px', opacity: '.4' });
-      impSetter(currentSize, { color: 'inherit', font: 'inherit', fontSize: fontSize + 'px' });
+      impSetter(currentSize, { color: 'inherit', font: 'inherit', fontSize: font + 'px' });
 
-      (function(i){
-        var voo = setInterval(function(){
+      ((i) => {
+        const voo = setInterval(() => {
           Object.assign(shine.style, {
             transform: 'scale(' + Math.floor(i / 2) + ')',
             top: (i * -3) + 'px',
@@ -77,17 +79,17 @@ function scaleFont() {
       })(0);
     };
 
-    btn.addEventListener("mouseenter", function() { btn.style.opacity = "1"; });
+    btn.addEventListener("mouseenter", () => (btn.style.opacity = "1"));
 
-    btn.addEventListener("mouseleave", function() { btn.style.opacity = ".6"; });
+    btn.addEventListener("mouseleave", () => (btn.style.opacity = ".6"));
 
-    btn.addEventListener("wheel", function(e) {
-      e.preventDefault();
-      fontSize += (e.deltaY > 0 ? -1 : 1);
-      document.getElementsByTagName("html")[0].style.fontSize = fontSize + "px";
-      e.deltaY > 0 ? shiny(btn.querySelector("span[symbol='-']"), "-") : shiny(btn.firstElementChild, "+");
+    btn.addEventListener("wheel", (w) => {
+      w.preventDefault();
+      font += (w.deltaY > 0 ? -1 : 1);
+      html.style.fontSize = font + "px";
+      w.deltaY > 0 ? shiny(btn.querySelector("span[symbol='-']"), "-") : shiny(btn.firstElementChild, "+");
     });
 
-    window.addEventListener("beforeunload", function(){ localStorage.fontSize = fontSize; });
-  }
+    window.addEventListener("beforeunload", () => (localStorage.fontSize = font));
+  });
 }
