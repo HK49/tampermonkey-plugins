@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.5
+// @version        0.51
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -70,9 +70,9 @@ waitress(['i', 'ss'], (iss = {}) => {
 
 
 //globals
-//waitress('#page', waitress.style({ '*, a, #page *, #page a': fix.bgandcolor() }));
 waitress('#page', () => waitress.style({ '*, a, #page *, #page a': fix.color() }));
-
+(() => (document.documentElement.style.font = 'normal 300 normal 1em/1.2em Helvetica, sans-serif'))();
+waitress('body, #page', { font: 'inherit' });
 
 // author/tl notes
 waitress('.footnotes', () => waitress.style({
@@ -284,11 +284,13 @@ fullScreen();
   nav.subm = nav.link + ' + .sub-menu';
   nav.subi = nav.subm + ' > li';
   nav.subl = nav.subi + ' > a';
-  nav.submsubm = nav.subl + ' + .sub-menu';
-  nav.hoverLink = nav.item + ':hover' + ' > .sub-menu';
-  nav.hoverSubm = nav.subm + ':hover';
-  nav.hoverSubs = nav.subm + ' > li:hover::before';
-
+  nav.subsubm = nav.subl + ' + .sub-menu';
+  nav.subsubi = nav.subsubm + ' > li';
+  nav.subsubl = nav.subsubi + ' > a';
+  nav.itemHover = [nav.item, nav.subi].map((e) => e + ':hover > .sub-menu');
+  nav.submHover = [nav.subm, nav.subsubm].map((e) => e + ':hover');
+  nav.subiHover = [nav.subm, nav.subsubm].map((e) => e + ' > li:hover::before');
+  //screeeee
   css.nav[nav.wrap] = { width: '100%' };
   css.nav[nav.menu] = {
     display: 'inline-flex',
@@ -300,13 +302,13 @@ fullScreen();
     flex: '1 0 auto'
   };
   css.nav[nav.link] = {
-    fontSize: '.7rem',
+    fontSize: '1rem',
     lineHeight: '1.65rem',
     margin: '0 auto',
     padding: '0 .3rem',
     width: 'max-content'
   };
-  css.nav[nav.subm] = {
+  css.nav[[nav.subm, nav.subsubm]] = {
     boxShadow: 'none',
     display: 'flex',
     position: 'absolute',
@@ -319,18 +321,19 @@ fullScreen();
     top: 'calc(1.65rem * 2)',
     transition: 'all .5s ease'
   };
-  css.nav[[nav.hoverLink, nav.hoverSubm]] = {
+  css.nav[[nav.itemHover, nav.submHover]] = {
     maxHeight: 1e4 + 'px !important',
     overflow: 'visible',
-    top: '1.65rem'
+    top: '1.65rem',
+    zIndex: '1'
   };
-  css.nav[nav.hoverLink] = { opacity: '.7' };
-  css.nav[nav.hoverSubm] = { opacity: '1' };
-  css.nav[nav.subi] = {
+  css.nav[nav.itemHover] = { opacity: '.7' };
+  css.nav[nav.submHover] = { opacity: '1' };
+  css.nav[[nav.subi, nav.subsubi]] = {
     borderLeft: '.2rem solid',
     zIndex: '1'
   };
-  css.nav[nav.subi + '::after'] = {
+  css.nav[[nav.subi, nav.subsubi].map((e) => e + '::after')] = {
     borderColor: 'inherit',
     borderTop: '.1rem solid',
     bottom: '0',
@@ -341,17 +344,17 @@ fullScreen();
     width: '0'
   };
   css.nav[
-    [nav.hoverLink, nav.hoverSubm].map((e) => e + ' > li::after')
+    [nav.itemHover, nav.submHover].map((e) => e.map((i) => i + ' > li::after'))
   ] = { width: 'calc(100% + .2rem)' };
-  css.nav[nav.subl] = {
+  css.nav[[nav.subl, nav.subsubl]] = {
     borderBottom: 'none',
-    fontSize: '.6rem',
+    fontSize: '.8rem',
     lineHeight: '1.6rem',
     margin: '0',
     padding: '0 .3rem',
     width: '100%'
   };
-  css.nav[nav.hoverSubs] = {
+  css.nav[nav.subiHover] = {
     background: dark.tint(0.8),
     content: '\'\'',
     height: '100%',
@@ -360,7 +363,7 @@ fullScreen();
     width: '100%',
     zIndex: '-1'
   };
-  css.nav[nav.subm + '::before'] = {
+  css.nav[[nav.subm, nav.subsubm].map((e) => e + '::before')] = {
     borderLeft: '.2rem solid',
     borderColor: 'inherit',
     content: '\'\'',
@@ -369,18 +372,17 @@ fullScreen();
     top: '0',
     transition: 'all .5s .5s ease'
   };
-  css.nav[[nav.hoverLink, nav.hoverSubm].map((e) => e + '::before')] = { top: '-1.65rem' };
-  css.nav[nav.submsubm] = { top: 'calc(1.6rem * 3)', zIndex: '-1' };
+  css.nav[[nav.itemHover, nav.submHover].map((e) => e.map((i) => i + '::before'))] = { top: '-1.65rem' };
   css.nav[
     [
-      [nav.subi, nav.submsubm].map((e) => e + ':hover'),
-      nav.subi + ':hover > a + .submenu'
+      [nav.subi, nav.subsubm].map((e) => e + ':hover'),
+      nav.subi + ':hover > a + .sub-menu'
     ].join(',')
   ] = { zIndex: '2' };
   css.nav[
-    [nav.submsubm + ':hover', nav.subi + ':hover > a + .sub-menu'].join(',')
+    [nav.subsubm + ':hover', nav.subi + ':hover > a + .sub-menu'].join(',')
   ] = { top: '1.6rem' };
-  css.nav[nav.submsubm + ' > li > a'] = { lineHeight: '1.6rem' };
+  css.nav[nav.subsubm + ' > li > a'] = { lineHeight: '1.6rem' };
 
   waitress('nav', () => waitress.style(css.nav, false, 'navbar_style'));
 })();
