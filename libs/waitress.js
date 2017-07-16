@@ -84,9 +84,8 @@ var waitress = function(master, job, support) {
         waitress.style.reattach[obj] = function(t) {
           return function(){ t.parentNode.appendChild(t, t.parentNode.lastElementChild); };
         }(tag);
-        document.addEventListener('DOMContentLoaded', waitress.style.reattach[obj]);
-      } else {
-        document.removeEventListener('DOMContentLoaded', waitress.style.reattach[obj]);
+
+        document.addEventListener('load', waitress.style.reattach[obj], { once: true });
       }
     });
   };
