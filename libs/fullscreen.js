@@ -1,4 +1,6 @@
-async function fullScreen() {
+function fullScreen() {
+    // TODO: window.scrollY are different variables?? in fullscreen and windowed mode
+
   if (!document.body) { return window.requestAnimationFrame(fullScreen); }
 
   const btn = document.createElement("btn");
@@ -11,14 +13,17 @@ async function fullScreen() {
   let full = false;
   let reqF = null;
 
-  const chain = await new Promise((resolve) => {
+  return new Promise((resolve) => {
     if (waitress) { resolve(waitress); }
-  }).catch(
-    fetch('https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js')
+  })
+  .catch(e => fetch(
+    'https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js'
+    )
     .then(raw => raw.text())
     .then(eval)
-  ).then((styleress) => {
-    styleress.style({
+  )
+  .then(() => {
+    waitress.style({
       "body:-webkit-full-screen": {
         backgroundColor: window.getComputedStyle(document.body).backgroundColor,
         height: "100%",
@@ -52,13 +57,14 @@ async function fullScreen() {
 
     document.body.insertBefore(btn, document.body.firstElementChild);
 
-    return styleress;
-  }).catch(window.console.error)
-  .then((styleress) => {
+    return waitress;
+  })
+  .catch(window.console.error)
+  .then(() => {
     function restyle(f) {
       // change style according to screen: full or not
       btn.setAttribute("title", `${f ? "Exit" : "Enter"} full screen mode`);
-      styleress.style({
+      waitress.style({
         [`#${attrs.id}::before`]: {
           borderWidth: '10px 0 0 10px',
           bottom: (f ? '0' : '3px'),
