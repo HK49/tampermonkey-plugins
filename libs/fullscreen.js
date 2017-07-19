@@ -1,5 +1,5 @@
 function fullScreen() {
-  // TODO: window.scrollY or document.body.scrollTop
+  // TODO: window.scrollY || (element).scrollTop || document.documentElement.scrollTop
   // in fullscreen mode are not responsive and store the values of when entering it
   // so when restoring page to windowed mode - page jumps to position of when
   // we left windowed mode
@@ -31,49 +31,7 @@ function fullScreen() {
       ).then(eval)
     )
     .then(() => {
-      function calcbg() {
-        const e = {
-          bg: "background",
-          bgC: "backgroundColor",
-          body: document.body,
-          doc: document.documentElement,
-        };
-        const def = {
-          bg: "rgba(0, 0, 0, 0) none repeat scroll 0% 0% / auto padding-box border-box",
-          bgC: "rgba(0, 0, 0, 0)",
-        };
-
-        function bg(el, style) { return window.getComputedStyle(el)[style]; }
-
-        const calc = {};
-        if (bg(e.body, e.bg) !== def.bg) {
-          calc.background = bg(e.body, e.bg);
-        } else if (bg(e.doc, e.bg) !== def.bg) {
-          calc.background = bg(e.doc, e.bg);
-        }
-
-        switch (true) {
-          case (bg(e.body, e.bgC) !== def.bgC):
-            calc.backgroundColor = bg(e.body, e.bgC);
-            break;
-          case (bg(e.doc, e.bgC) !== def.bgC):
-            calc.backgroundColor = bg(e.doc, e.bgC);
-            break;
-          default:
-          // but what to do if bg color was actually set to black? >_<
-            calc.backgroundColor = "#fff";
-        }
-
-        return calc;
-      }
-
       waitress.style({
-        "body:-webkit-full-screen": Object.assign({
-          height: "100%",
-          maxWidth: "100%",
-          overflowY: "scroll",
-          width: "100%",
-        }, calcbg()),
         [`#${attrs.id}`]: {
           border: 'solid 2px',
           bottom: '10px',
@@ -150,7 +108,7 @@ function fullScreen() {
         restyle(full);
       }
 
-      btn.addEventListener('click', () => action(document.body));
+      btn.addEventListener('click', () => action(document.documentElement));
     })
     .catch(window.console.error);
 }
