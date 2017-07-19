@@ -1,9 +1,4 @@
 function fullScreen() {
-  // TODO: window.scrollY || (element).scrollTop || document.documentElement.scrollTop
-  // in fullscreen mode are not responsive and store the values of when entering it
-  // so when restoring page to windowed mode - page jumps to position of when
-  // we left windowed mode
-
   if (!document.body) { return window.requestAnimationFrame(fullScreen); }
 
   const btn = document.createElement("btn");
@@ -90,6 +85,8 @@ function fullScreen() {
       restyle(full);
 
       function action(o) {
+        const scrollPos = window.pageYOffset;
+        // only pageYOffset stores value of scroll in fullscreen chrome
         if (!full) {
           reqF = o.requestFullScreen
           || o.webkitRequestFullscreen
@@ -105,6 +102,7 @@ function fullScreen() {
           full = false;
           reqF.bind(document).apply();
         }
+        setTimeout(() => (document.body.scrollTop = scrollPos), 200);
         restyle(full);
       }
 
