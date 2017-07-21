@@ -1,62 +1,62 @@
 function dayNight(day, night) {
   // syntax: dayNight((function() { day opts }), (function() { night opts }));
-  if(dayNight.arguments.length !== 2) {
+  if (dayNight.arguments.length !== 2) {
     return window.console.error("dayNight function should have day and night opts!");
   }
 
-  var darkened = ((localStorage.darkened && (/^(true|false)$/).test(localStorage.darkened)) ? JSON.parse(localStorage.darkened) : false);
   // boolean for page state: restore or apply day mode
+  let darkened = (() => {
+    const store = localStorage.darkened;
+    return (/^(true|false)$/).test(store) ? JSON.parse(store) : false;
+  })();
 
-  var lights = {
-    on: function() { day.bind(document).apply(); },
-    off: function() { night.bind(document).apply(); }
+  const lights = {
+    on() { day.bind(document).apply(); },
+    off() { night.bind(document).apply(); },
   };
 
-  if(!document.body) {
-    window.requestAnimationFrame(function() { dayNight(day, night); });
+  if (!document.body) {
+    window.requestAnimationFrame(() => dayNight(day, night));
   } else {
-    var btn = document.createElement("div"),
-        sun = "\u2600\uFE0E",
-        moon = "\u263D",
-        fluents = function(){
-          return {
-            bottom: (darkened ? 10 : 8) + 'px',
-            left: (darkened ? 38 : 44) + 'px',
-            transform: (darkened ? '' : 'rotate(45deg)')
-          };
-        };
-        // fluents change depending on day/night
+    const icons = { sun: "\u2600\uFE0E", moon: "\u263D" };
 
+    const btn = document.createElement("div");
     btn.setAttribute("id", "night_btn");
     Object.assign(btn.style, {
-      position: 'fixed',
-      font: '32px/24px "Open Sans"',
       color: 'inherit',
-      zIndex: String(1e+4),
+      cursor: 'pointer',
+      font: '32px/24px "Open Sans"',
       opacity: '0.6',
-      cursor: 'pointer'
+      position: 'fixed',
+      zIndex: String(1e+4),
     });
     document.body.insertBefore(btn, document.body.firstElementChild);
 
-    var cycle = function() {
+    const switchingCSS = () => ({
+      bottom: `${darkened ? 10 : 8}px`,
+      left: `${darkened ? 38 : 44}px`,
+      transform: (darkened ? '' : 'rotate(45deg)'),
+    });
+
+    const switchStyle = () => {
       darkened ? lights.off() : lights.on();
-      btn.setAttribute("title", "Toggle " + (darkened ? "day" : "night") + " mode.");
-      btn.innerText = (darkened ? sun : moon);
-      Object.assign(btn.style, fluents());
+      btn.setAttribute("title", `Toggle ${darkened ? "day" : "night"} mode.`);
+      btn.innerText = (darkened ? icons.sun : icons.moon);
+      Object.assign(btn.style, switchingCSS());
     };
     // changing scope
-    cycle();
+    switchStyle();
 
-    var int, opacity;
-    var translucent = function(e) {
+    let int;
+    const changeOpacity = (e) => {
       clearInterval(int);
-      var opacityMax = ((/enter/).test(e) ? 1.1 : 0.5);
-      opacity = function(){
-        return (Math.round((parseFloat(btn.style.opacity) + ((/enter/).test(e) ? 0.1 : -0.1)) * 10) / 10);
-        // if mouseenter increment opacity, else - decrement; round for correct parsing
-      };
-      int = setInterval(function() {
-        if(opacity() === opacityMax) {
+      const opacityMax = ((/enter/).test(e) ? 1.1 : 0.5);
+      const opacity = () => Math.round(
+        (parseFloat(btn.style.opacity) + ((/enter/).test(e) ? 0.1 : -0.1)) * 10
+      ) / 10;
+      // if mouseenter increment opacity, else - decrement; round for correct parsing
+      int = setInterval(() => {
+        if (opacity() === opacityMax) {
           clearInterval(int);
         } else {
           btn.style.opacity = String(opacity());
@@ -64,17 +64,14 @@ function dayNight(day, night) {
       }, 40);
     };
 
-    ['mouseenter', 'mouseleave'].forEach(function(e) {
-      btn.addEventListener(e, function() { translucent(e); });
-    });
+    ['mouseenter', 'mouseleave'].forEach(e => btn.addEventListener(e, () => changeOpacity(e)));
 
-    btn.onclick = function(){
+    btn.onclick = () => {
       darkened = !darkened;
-      // booleans hooray!
-      cycle();
+      switchStyle();
     };
   }
 
-  window.addEventListener("beforeunload", function(){ localStorage.darkened = darkened; });
+  window.addEventListener("beforeunload", () => (localStorage.darkened = darkened));
   // store mode for staying the same in night/day mode;
 }
