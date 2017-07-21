@@ -121,8 +121,8 @@ if (/prologue|chapter/.test(window.location.pathname)) {
 
     // if no next chapter - don't display the link! damn!
     (async () => {
-      const req = await fetch(nextChLink.href);
-      if (req.status === 503) { nextChLink.style.display = 'none'; }
+      const req = await fetch(nextChLink.href, { credentials: 'include' });
+      if (req.status === 404) { nextChLink.style.display = 'none'; }
     })();
   });
 }
