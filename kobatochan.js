@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.51
+// @version        0.54
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -19,12 +19,12 @@ const dark = {
     all: 'rgb(196, 120, 98)',
     btn: 'rgb(243, 181, 157)',
     link: 'rgb(243, 181, 157)',
-    linkHover: 'rgb(248, 210, 196)'
+    linkHover: 'rgb(248, 210, 196)',
   },
   bg: 'rgb(117, 72, 55)',
   mid: 'rgb(88, 55, 42)',
   wrap: 'rgb(59, 36, 30)',
-  tint: (a = 1) => 'hsla(14, 43%, 56%, ' + a + ')'
+  tint: (a = 1) => `hsla(14, 43%, 56%, ${a})`,
 };
 
 const light = {
@@ -32,66 +32,99 @@ const light = {
     all: 'rgb(150, 92, 75)',
     btn: 'rgb(246, 200, 182)',
     link: 'rgb(125, 67, 63)',
-    linkHover: 'rgb(71, 38, 36)'
+    linkHover: 'rgb(71, 38, 36)',
   },
   bg: 'rgb(195, 147, 104)',
   mid: 'rgb(207, 168, 134)',
   wrap: 'rgb(219, 190, 164)',
-  tint: (a = 1) => 'hsla(30, 30%, 77%, ' + a + ')'
+  tint: (a = 1) => `hsla(30, 30%, 77%, ${a})`,
 };
 
 const css = {};
 const nodes = {};
-///TODO should just place all css in css and attach it
+// /TODO should just place all css in css and attach it
 
 const fix = {
-  i: (i) => ((i && i === '!') ? ' !important' : ''),
-  bg: (i) => ({ background: 'transparent' + fix.i(i) }),
-  color: (i) => ({ color: 'inherit' + fix.i(i) }),
-  bgandcolor: (b, c) => Object.assign(fix.bg(b), fix.color(c))
+  i: i => ((i && i === '!') ? ' !important' : ''),
+  bg: i => ({ background: `transparent${fix.i(i)}` }),
+  color: i => ({ color: `inherit${fix.i(i)}` }),
+  bgandcolor: (b, c) => Object.assign(fix.bg(b), fix.color(c)),
 };
 
 
 // remove custom css
-waitress('#wp-custom-css', () => document.getElementById('wp-custom-css').remove());
-waitress('#dark-css', () => document.getElementById('dark-css').remove());
-waitress('#text-21', () => document.getElementById('text-21').remove());
+const customCSS = [
+  'admin-bar-css',
+  'admin-bar-inline-css',
+  'custom-background-css',
+  'dark-css',
+  'wp-custom-css',
+  'text-21',
+];
+const removeByID = id => document.getElementById(id).remove();
+customCSS.forEach((e, i) => waitress((`#${customCSS[i]}`), () => removeByID(customCSS[i])));
 
+waitress('.theme-author', () => {
+  document.getElementsByClassName('theme-author')[0].insertAdjacentHTML(
+    'beforeend',
+    ' <span>[redacted]</span>',
+  );
+});
 
-//fix for social buttons
+// fix for social buttons
 waitress(['i', 'ss'], (iss = {}) => {
   ['i', 'ss'].forEach((e) => { iss[e] = document.getElementsByTagName(e); });
   Array.from(iss.i).concat(Array.from(iss.ss)).forEach((e) => {
     e.style.setProperty(
-      'background', window.getComputedStyle(e).background, 'important'
+      'background', window.getComputedStyle(e).background, 'important',
     );
   });
 });
 
 
-//globals
+// globals
 waitress('#page', () => waitress.style({ '*, a, #page *, #page a': fix.color() }));
 (() => (document.documentElement.style.font = 'normal 300 normal 1em/1.2em Helvetica, sans-serif'))();
 waitress('body, #page', { font: 'inherit' });
+waitress('ul, ol', () => waitress.style({ 'ul, ol': { margin: '0' } }));
 
 // author/tl notes
 waitress('.footnotes', () => waitress.style({
   '#page .footnotes, #page .footnotes ol, #page .footnotes li': Object.assign({
     fontSize: '0.8rem',
-    lineHeight: '1.2rem'
+    lineHeight: '1.2rem',
   }, fix.bgandcolor('', '!')),
   '#page .entry-content ol': { color: 'inherit !important' },
   '#page li[dir=\'ltr\'], #page li[id^=fn]': {
-    background: dark.tint(0.5) + ' !important',
-    borderRight: '4px solid ' + dark.tint(),
-    color: 'inherit !important'
-  }
+    background: `${dark.tint(0.5)} !important`,
+    borderRight: `4px solid ${dark.tint()}`,
+    color: 'inherit !important',
+  },
 }, false, 'footnotes_style'));
 
 
-// don't display sidebars when reading
-if(/prologue|chapter/.test(window.location.pathname)) {
+if (/prologue|chapter/.test(window.location.pathname)) {
+  // don't display sidebars when reading
   waitress('#secondary, #third-sidebar', { display: 'none' });
+
+  waitress('.entry-content', () => {
+    // get link to the next chapter
+    const nextChLink = Array
+      .from(
+        document.getElementsByClassName(`entry-content`)[0]
+          .getElementsByTagName(`h3`),
+      )
+      .filter(e => e.hasChildNodes())
+      .map(e => Array.from(e.getElementsByTagName('a'))
+        .filter(i => i.innerText.includes(`Next Chapter`))[0],
+      )[0];
+
+    // if no next chapter - don't display the link! damn!
+    (async () => {
+      const req = await fetch(nextChLink.href);
+      if (req.status === 503) { nextChLink.style.display = 'none'; }
+    })();
+  });
 }
 
 
@@ -106,16 +139,16 @@ waitress('#primary', {
   margin: '0 auto',
   border: '1rem solid',
   borderBottomWidth: '0.3rem',
-  borderTopWidth: '0.3rem'
+  borderTopWidth: '0.3rem',
 });
 waitress('p', { fontSize: '1rem', lineHeight: '1.3rem', marginBottom: '1.8rem' });
 waitress('a[href*=kobato], a[href="/"], li[id^=menu]', (() => fix.bg('!'))());
 
-//remove 32px margin-top for admin bar
+// remove 32px margin-top for admin bar
 waitress('style[media="screen"]',
   (q = document.querySelectorAll('style[media="screen"]')) => {
-    q.forEach((e) => { if((/n-top:.*!i/).test(e.innerText)) { e.remove(); } });
-  }
+    q.forEach((e) => { if ((/n-top:.*!i/).test(e.innerText)) { e.remove(); } });
+  },
 );
 
 // remove bg of topbtn
@@ -127,7 +160,7 @@ function lights(daytime) {
   // page with text
   waitress(
     'article[id^=post], #primary',
-    { background: (on ? light.wrap : dark.wrap) + ' !important' }
+    { background: `${on ? light.wrap : dark.wrap} !important` },
   );
 
   // page background
@@ -141,9 +174,9 @@ function lights(daytime) {
       '#main',
       '#site-generator',
       '.sub-menu',
-      '.wrapper'
+      '.wrapper',
     ],
-    { background: (on ? light.bg : dark.bg) + ' !important' }
+    { background: `${on ? light.bg : dark.bg} !important` },
   );
 
   // page border
@@ -159,13 +192,13 @@ function lights(daytime) {
       'p',
       'span',
       'strong',
-      'time'
+      'time',
     ],
-    { color: (on ? light.color.all : dark.color.all) + ' !important' }
+    { color: `${on ? light.color.all : dark.color.all} !important` },
   );
   waitress('hr', {
-    background: (on ? light.color.all : dark.color.all) + ' !important',
-    height: '0.1rem'
+    background: `${on ? light.color.all : dark.color.all} !important`,
+    height: '0.1rem',
   });
 
   // buttons from libs
@@ -177,28 +210,28 @@ function lights(daytime) {
       'html',
       '#page',
       '#main',
-      '#night_btn'
+      '#night_btn',
     ],
-    { color: (on ? light.color.btn : dark.color.btn) + ' !important' }
+    { color: `${on ? light.color.btn : dark.color.btn} !important` },
   );
 
   // links
   waitress('a', () => waitress.style({
-    'a, a:visited': { color: (on ? light.color.link : dark.color.link) + ' !important' },
-    'a:hover, a:active': { color: (on ? light.color.linkHover : dark.color.linkHover) + ' !important' }
+    'a, a:visited': { color: `${on ? light.color.link : dark.color.link} !important` },
+    'a:hover, a:active': { color: `${on ? light.color.linkHover : dark.color.linkHover} !important` },
   }, false, 'links_style'));
 
-  //checkboxes
+  // checkboxes
   waitress('input', () => waitress.style({
     'input[type="checkbox"]': {
       position: 'relative',
-      width: 'initial !important'
+      width: 'initial !important',
     },
     'input[type="checkbox"]::before, input[type="checkbox"]:checked::after': {
       content: '\'\'',
       cursor: 'pointer',
       position: 'absolute',
-      border: '2px solid ' + (on ? dark.tint() : dark.color.btn)
+      border: `2px solid ${on ? dark.tint() : dark.color.btn}`,
     },
     'input[type="checkbox"]::before': {
       left: '55%',
@@ -206,16 +239,16 @@ function lights(daytime) {
       height: '110%',
       borderRadius: '4px',
       transform: 'translateX(-55%)',
-      background: (on ? light.color.btn : dark.tint())
+      background: (on ? light.color.btn : dark.tint()),
     },
     'input[type="checkbox"]:checked::after': {
       width: '50%',
       height: '33%',
       borderTop: 'none',
       borderRight: 'none',
-      transform: 'rotate(-45deg) translateY(120%) translateX(-10%)'
-    }
-  }, false, 'checkbox_style' ));
+      transform: 'rotate(-45deg) translateY(120%) translateX(-10%)',
+    },
+  }, false, 'checkbox_style'));
 }
 
 // btn from daynight.js
@@ -239,31 +272,31 @@ fullScreen();
       '#page #respond input',
       '#page #respond #submit',
       '#page #comments textarea',
-      '#branding #searchform > input#s'
+      '#branding #searchform > input#s',
     ],
     form: 'form',
     ph: '::placeholder',
-    phH: ':hover::placeholder'
+    phH: ':hover::placeholder',
   };
-  input.focus = input.i.map((i) => i + ':focus');
-  input.hover = input.i.map((i) => i + ':hover:not(:focus)');
+  input.focus = input.i.map(i => `${i}:focus`);
+  input.hover = input.i.map(i => `${i}:hover:not(:focus)`);
 
   css.input[input.i] = Object.assign({
     background: dark.tint(0.2),
-    border: '1px solid ' + dark.tint(),
+    border: `1px solid ${dark.tint()}`,
     borderRadius: '4px',
     boxShadow: 'none',
     font: 'normal 0.8rem/1rem Arial, "sans-serif"',
     padding: '.5rem',
     textShadow: 'none',
-    transition: 'background-color .4s ease'
+    transition: 'background-color .4s ease',
   }, fix.color('!'));
   css.input[input.focus] = { background: dark.tint(0.4) };
   css.input[input.hover] = { background: light.tint(0.1) };
   css.input[input.form] = { overflow: 'hidden' };
   css.input[input.ph] = Object.assign(
     { transition: 'transform .8s ease-in-out' },
-    fix.color()
+    fix.color(),
   );
   css.input[input.phH] = { transform: 'translateX(200%)' };
 
@@ -276,37 +309,38 @@ fullScreen();
   const nav = {};
   css.nav = {};
   nav.head = '#header-menu';
-  nav.root = nav.head + ' > nav';
-  nav.wrap = nav.root + ' > .wrapper';
-  nav.menu = nav.wrap + ' > .menu';
-  nav.item = nav.menu + ' > .menu-item';
-  nav.link = nav.item + ' > a';
-  nav.subm = nav.link + ' + .sub-menu';
-  nav.subi = nav.subm + ' > li';
-  nav.subl = nav.subi + ' > a';
-  nav.subsubm = nav.subl + ' + .sub-menu';
-  nav.subsubi = nav.subsubm + ' > li';
-  nav.subsubl = nav.subsubi + ' > a';
-  nav.itemHover = [nav.item, nav.subi].map((e) => e + ':hover > .sub-menu');
-  nav.submHover = [nav.subm, nav.subsubm].map((e) => e + ':hover');
-  nav.subiHover = [nav.subm, nav.subsubm].map((e) => e + ' > li:hover::before');
-  //screeeee
+  nav.root = `${nav.head} > nav`;
+  nav.wrap = `${nav.root} > .wrapper`;
+  nav.menu = `${nav.wrap} > .menu`;
+  nav.item = `${nav.menu} > .menu-item`;
+  nav.link = `${nav.item} > a`;
+  nav.subm = `${nav.link} + .sub-menu`;
+  nav.subi = `${nav.subm} > li`;
+  nav.subl = `${nav.subi} > a`;
+  nav.subsubm = `${nav.subl} + .sub-menu`;
+  nav.subsubi = `${nav.subsubm} > li`;
+  nav.subsubl = `${nav.subsubi} > a`;
+  nav.itemHover = [nav.item, nav.subi].map(e => `${e}:hover > .sub-menu`);
+  nav.submHover = [nav.subm, nav.subsubm].map(e => `${e}:hover`);
+  nav.subiHover = [nav.subm, nav.subsubm].map(e => `${e} > li:hover::before`);
+  // screeeee
   css.nav[nav.wrap] = { width: '100%' };
   css.nav[nav.menu] = {
     display: 'inline-flex',
     flexFlow: 'row wrap',
-    width: '100%'
+    width: '100%',
   };
   css.nav[nav.item] = {
+    borderTop: '.2rem solid',
     display: 'flex',
-    flex: '1 0 auto'
+    flex: '1 0 auto',
   };
   css.nav[nav.link] = {
     fontSize: '1rem',
     lineHeight: '1.65rem',
     margin: '0 auto',
     padding: '0 .3rem',
-    width: 'max-content'
+    width: 'max-content',
   };
   css.nav[[nav.subm, nav.subsubm]] = {
     boxShadow: 'none',
@@ -319,21 +353,21 @@ fullScreen();
     opacity: '0',
     overflow: 'hidden',
     top: 'calc(1.65rem * 2)',
-    transition: 'all .5s ease'
+    transition: 'all .5s ease',
   };
   css.nav[[nav.itemHover, nav.submHover]] = {
-    maxHeight: 1e4 + 'px !important',
+    maxHeight: `${1e4}px !important`,
     overflow: 'visible',
     top: '1.65rem',
-    zIndex: '1'
+    zIndex: '1',
   };
   css.nav[nav.itemHover] = { opacity: '.7' };
   css.nav[nav.submHover] = { opacity: '1' };
   css.nav[[nav.subi, nav.subsubi]] = {
     borderLeft: '.2rem solid',
-    zIndex: '1'
+    zIndex: '1',
   };
-  css.nav[[nav.subi, nav.subsubi].map((e) => e + '::after')] = {
+  css.nav[[nav.subi, nav.subsubi].map(e => `${e}::after`)] = {
     borderColor: 'inherit',
     borderTop: '.1rem solid',
     bottom: '0',
@@ -341,10 +375,10 @@ fullScreen();
     left: '-.2rem',
     position: 'absolute',
     transition: 'width .5s 1s ease-out',
-    width: '0'
+    width: '0',
   };
   css.nav[
-    [nav.itemHover, nav.submHover].map((e) => e.map((i) => i + ' > li::after'))
+    [nav.itemHover, nav.submHover].map(e => e.map(i => `${i} > li::after`))
   ] = { width: 'calc(100% + .2rem)' };
   css.nav[[nav.subl, nav.subsubl]] = {
     borderBottom: 'none',
@@ -352,7 +386,7 @@ fullScreen();
     lineHeight: '1.6rem',
     margin: '0',
     padding: '0 .3rem',
-    width: '100%'
+    width: '100%',
   };
   css.nav[nav.subiHover] = {
     background: dark.tint(0.8),
@@ -361,105 +395,119 @@ fullScreen();
     position: 'absolute',
     top: '0',
     width: '100%',
-    zIndex: '-1'
+    zIndex: '-1',
   };
-  css.nav[[nav.subm, nav.subsubm].map((e) => e + '::before')] = {
+  css.nav[[nav.subm, nav.subsubm].map(e => `${e}::before`)] = {
     borderLeft: '.2rem solid',
     borderColor: 'inherit',
     content: '\'\'',
     height: '1.65rem',
     position: 'absolute',
     top: '0',
-    transition: 'all .5s .5s ease'
+    transition: 'all .5s .5s ease',
   };
-  css.nav[[nav.itemHover, nav.submHover].map((e) => e.map((i) => i + '::before'))] = { top: '-1.65rem' };
+  css.nav[[nav.itemHover, nav.submHover].map(e => e.map(i => `${i}::before`))] = { top: '-1.65rem' };
   css.nav[
     [
-      [nav.subi, nav.subsubm].map((e) => e + ':hover'),
-      nav.subi + ':hover > a + .sub-menu'
+      [nav.subi, nav.subsubm].map(e => `${e}:hover`),
+      `${nav.subi}:hover > a + .sub-menu`,
     ].join(',')
   ] = { zIndex: '2' };
   css.nav[
-    [nav.subsubm + ':hover', nav.subi + ':hover > a + .sub-menu'].join(',')
+    [`${nav.subsubm}:hover`, `${nav.subi}:hover > a + .sub-menu`].join(',')
   ] = { top: '1.6rem' };
-  css.nav[nav.subsubm + ' > li > a'] = { lineHeight: '1.6rem' };
+  css.nav[`${nav.subsubm} > li > a`] = { lineHeight: '1.6rem' };
 
   waitress('nav', () => waitress.style(css.nav, false, 'navbar_style'));
 })();
 
 
-if(!(/prologue|chapter/).test(window.location.pathname)) {
-  (() => {
+(() => {
+  css.wrap = {};
+
+  css.wrap['#colophon'] = fix.bg('!');
+  css.wrap['#footer-sidebar'] = { border: 'none !important' };
+  css.wrap['#supplementary .widget'] = fix.bg('!');
+
+  if (!(/prologue|chapter/).test(window.location.pathname)) {
     // homepage
     css.home = {};
     nodes.home = {
       content: '.home #content',
-      article: '.home #content article'
+      article: '.home #content article',
     };
     css.home[nodes.home.content] = { borderColor: 'inherit' };
     css.home[nodes.home.article] = {
       borderBottom: '0.2rem solid',
       borderColor: 'inherit',
-      borderRadius: '0'
+      borderRadius: '0',
     };
     waitress.style(css.home, false, 'homepage_style');
 
 
-    // wrapper and sidebars. (sidebars are not shown when reading)
-    css.wrap = {};
-    nodes.wrap = {
-      wrapper: '#main-wrapper > #main > .wrapper',
-      content: '#main-wrapper > #main > .wrapper > .content-sidebar-wrap',
-      primary: '#primary',
-      secondary: '#secondary',
-      sidebar: '#third-sidebar',
-      widgets: [
-        '.widget',
-        '.widget > .widget-title',
-        '.widget > ul',
-        '.widget > ul > li'
-      ]
-    };
-    css.wrap[nodes.wrap.wrapper] = {
+    // wrapper, sidebars and widgets. (sidebars are not shown when reading)
+    const wrap = {};
+    wrap.wrap = '#main-wrapper > #main > .wrapper';
+    wrap.content = `${wrap.wrap} > .content-sidebar-wrap`;
+    css.wrap[wrap.wrap] = {
       display: 'flex',
       flexFlow: 'row-reverse wrap',
       color: 'inherit !important',
-      width: '100%'
+      width: '100%',
     };
-    css.wrap[nodes.wrap.content] = {
+    css.wrap[wrap.content] = {
       display: 'flex',
       flex: '1 0 35rem',
       flexFlow: 'row wrap',
       margin: '0 auto',
       maxWidth: '90vw',
       minWidth: '80vw',
-      position: 'relative'
+      position: 'relative',
     };
-    css.wrap[nodes.wrap.primary] = {
+    css.wrap['#primary'] = {
       flex: '1 1 auto',
       margin: '0 auto',
       maxWidth: '90vw',
       minWidth: '60vw',
-      position: 'relative'
+      position: 'relative',
     };
-    css.wrap[nodes.wrap.secondary] = {
+    css.wrap['#secondary'] = {
       color: 'inherit !important',
       flex: '1 1 auto',
       maxWidth: '20vw',
-      minWidth: '12rem'
+      minWidth: '12rem',
     };
-    css.wrap[nodes.wrap.sidebar] = {
+    css.wrap['#third-sidebar'] = {
       color: 'inherit !important',
       display: 'block',
       flex: '0 1 auto',
       maxWidth: '17rem',
-      minWidth: '8rem'
+      minWidth: '8rem',
     };
-    css.wrap[nodes.wrap.widgets] = fix.bgandcolor('!', '!');
+    css.wrap['#third-sidebar > :nth-child(n)'] = { flex: '0 0 33%', padding: '2% 3% 1% 10%' };
+    css.wrap['#third-sidebar > #media_image-10'] = { paddingRight: '5%' };
 
-    waitress.style(css.wrap, false, 'main_layout_style');
-  })();
-}
+    const widget = {
+      widgets: [
+        '.widget',
+        '.widget > .widget-title',
+        '.widget > ul',
+        '.widget > ul > li',
+      ],
+      list: '.widget ul',
+      text: ['.textwidget > p', '.widget-area', '.widget ul'],
+    };
+    css.wrap[widget.widgets] = fix.bgandcolor('!', '!');
+    css.wrap[widget.list] = { listStyle: 'none', margin: '0' };
+    css.wrap[widget.text] = {
+      fontSize: '.7rem',
+      lineHeight: '1.2rem',
+      marginBottom: '0',
+    };
+  }
+
+  waitress.style(css.wrap, false, 'main_layout');
+})();
 
 
 // comments
@@ -472,23 +520,23 @@ if(!(/prologue|chapter/).test(window.location.pathname)) {
       '#comments > .commentlist > .comment',
       'article[id^=\'comment\']',
       'article[id^=\'comment\'] + .children',
-      '#page #comments-title'
+      '#page #comments-title',
     ],
     tinted: [
       'article[id^=\'comment\'] + .children > .comment',
-      '#author-info'
+      '#author-info',
     ],
     comment: '#page #comments .comment article',
-    orFB: '#respond li[id^=theChampTabs]'
+    orFB: '#respond li[id^=theChampTabs]',
   };
   css.comments[nodes.comments.main] = fix.bgandcolor('!', '!');
   css.comments[nodes.comments.tinted] = {
-    background: dark.tint(0.3) + ' !important',
-    color: 'inherit !important'
+    background: `${dark.tint(0.3)} !important`,
+    color: 'inherit !important',
   };
   css.comments[nodes.comments.comment] = {
-    borderBottom: '4px solid ' + dark.tint(),
-    borderRadius: '4px'
+    borderBottom: `4px solid ${dark.tint()}`,
+    borderRadius: '4px',
   };
   css.comments[nodes.comments.orFB] = fix.bgandcolor('!', '!');
 
@@ -501,21 +549,21 @@ if(!(/prologue|chapter/).test(window.location.pathname)) {
   const law = {};
   css.law = {};
   law.bar = '#main #third-sidebar';
-  law.widget = law.bar + ' > #eu_cookie_law_widget-2';
-  law.inside = law.widget + ' > #eu-cookie-law';
-  law.link = law.insid + ' > a';
-  law.submit = law.inside + ' > form > .accept';
+  law.widget = `${law.bar} > #eu_cookie_law_widget-2`;
+  law.inside = `${law.widget} > #eu-cookie-law`;
+  law.link = `${law.inside} > a`;
+  law.submit = `${law.inside} > form > .accept`;
 
   css.law[law.widget] = { maxWidth: '36vw' };
   css.law[law.inside] = {
     font: 'normal .5rem/.75rem Helvetica, sans-serif',
     padding: '.5rem .5rem calc(2.25rem + 1px)',
-    textAlign: 'justify'
+    textAlign: 'justify',
   };
   css.law[law.link] = {
     display: 'inline-block',
     textAlign: 'center',
-    width: '100%'
+    width: '100%',
   };
   css.law[law.submit] = {
     border: '1px solid',
@@ -528,7 +576,7 @@ if(!(/prologue|chapter/).test(window.location.pathname)) {
     position: 'absolute',
     right: 'initial',
     transform: 'translateX(-50%)',
-    width: '80%'
+    width: '80%',
   };
 
   [css.law[law.submit], css.law[law.link]].forEach((e) => {
@@ -538,7 +586,8 @@ if(!(/prologue|chapter/).test(window.location.pathname)) {
     Object.assign(e, { backgroundColor: 'inherit !important' });
   });
 
-  waitress('#eu_cookie_law_widget-2',
-    () => waitress.style(css.law, false, 'eu_cookie_law_widget_style')
+  waitress(
+    '#eu_cookie_law_widget-2',
+    () => waitress.style(css.law, false, 'eu_cookie_law_widget_style'),
   );
 })();
