@@ -9,13 +9,33 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fullscreen.js
-// @version        0.1a
+// @version        0.1
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
 
-const barCls = 'sidebar-primary';
+
+// sidebar object
+const sb = {
+  class: 'sidebar-primary',
+  id: 'sidebar',
+};
+
+if (!window.location.pathname.includes('catch-responsive-volare')) {
+  sb.hidden = localStorage.hiddenSidebar ? JSON.parse(localStorage.hiddenSidebar) : false;
+  window.addEventListener("beforeunload", () => {
+    localStorage.hiddenSidebar = JSON.stringify(sb.hidden);
+  });
+}
+
+// just oftenly used
 const tr = { transition: 'all .4s ease-in-out' };
+
+// change page width according to sidebar status
+function pageWidth() {
+  document.getElementById('page').style.width = `${sb.hidden ? '21cm' : 'calc(21cm + 340px)'}`;
+}
+waitress('#page', () => pageWidth());
 
 async function sidebarHide() {
   // if no waitress function - get it
@@ -35,24 +55,26 @@ async function sidebarHide() {
 
   function builder() {
     // style sidebar and its other children
-    const sidebar = document.getElementsByClassName(`${barCls}`)[0];
-    Object.assign(sidebar.style, {
+    sb.node = document.getElementsByClassName(`${sb.class}`)[0];
+    sb.node.setAttribute('id', sb.id);
+    Object.assign(sb.node.style, {
       fontSize: '.8rem',
+      maxWidth: '30vw',
       position: 'absolute',
-      right: '0',
+      right: `${sb.hidden ? '-340px' : '0'}`,
       width: '340px',
       willChange: 'right',
     }, tr);
 
     waitress.style({
-      [`.${barCls} > :nth-child(n):not(#bar-bg):not(#bar-btn)`]: {
+      [`#${sb.id} > :nth-child(n):not(#bar-bg):not(#bar-btn)`]: {
         position: 'relative',
         zIndex: '3',
       },
     }, false, 'sidebar_children_style');
 
     // style wrapper
-    const wrap = document.getElementsByClassName(`${barCls}`)[0].parentElement;
+    const wrap = document.getElementById(`${sb.id}`).parentElement;
     Object.assign(wrap.style, {
       overflow: 'hidden',
       padding: '0',
@@ -60,12 +82,12 @@ async function sidebarHide() {
     });
 
     // style sidebar bg
-    const bg = sidebar.insertBefore(
+    sb.bg = sb.node.insertBefore(
       document.createElement('div'),
-      sidebar.firstElementChild,
+      sb.node.firstElementChild,
     );
 
-    Object.assign(bg.style, {
+    Object.assign(sb.bg.style, {
       border: '1px solid',
       borderTop: '0',
       borderRight: '0',
@@ -77,43 +99,57 @@ async function sidebarHide() {
       zIndex: '2',
     });
 
-    bg.setAttribute('id', 'bar-bg');
+    sb.bg.setAttribute('id', 'bar-bg');
 
     // style sidebar hiding button
-    const btn = sidebar.insertBefore(
+    sb.btn = sb.node.insertBefore(
       document.createElement('div'),
-      bg.nextElementSibling,
+      sb.bg.nextElementSibling,
     );
 
-    Object.assign(btn.style, {
-      border: '1px solid',
-      borderRadius: '50%',
-      height: '50px',
-      left: '-25px',
-      position: 'absolute',
-      top: '25%',
-      width: '50px',
-      zIndex: '1',
+    sb.btn.setAttribute('id', 'bar-btn');
+
+    // change arrow direction depending on sidebar status
+    sb.arrowDirection = () => ({
+      left: `calc(25px - 15px${sb.hidden ? '' : ' - 15px / 2'})`,
+      transform: `rotate(${sb.hidden ? '225' : '45'}deg)`,
     });
 
-    btn.setAttribute('id', 'bar-btn');
+    waitress.style({
+      [`#${sb.btn.id}`]: {
+        border: '1px solid',
+        borderRadius: '50%',
+        height: '50px',
+        left: '-25px',
+        position: 'absolute',
+        top: '25%',
+        width: '50px',
+        zIndex: '1',
+      },
+      [`#${sb.btn.id}::before`]: Object.assign({
+        border: '2px solid',
+        borderBottom: '0',
+        borderLeft: '0',
+        borderRadius: '3px',
+        content: '""',
+        height: '15px',
+        position: 'absolute',
+        top: 'calc(25px - 15px / 2)', /* calc((sb.btn width / 2) - (::before width / 2)) */
+        width: '15px',
+      }, sb.arrowDirection(), tr),
+    }, false, 'sidebar_hider_css');
 
-    let hidden = false;
-    btn.addEventListener('click', () => {
-      if (!hidden) {
-        // hide sidebtn, shorten width of page
-        document.getElementById('page').style.width = '21cm';
-        sidebar.style.right = '-340px';
-      } else {
-        // reveal
-        document.getElementById('page').style.width = 'calc(21cm + 340px)';
-        sidebar.style.right = '0';
-      }
-      hidden = !hidden;
+    sb.btn.addEventListener('click', () => {
+      sb.hidden = !sb.hidden;
+      pageWidth();
+      sb.node.style.right = `${sb.hidden ? '-340px' : '0'}`;
+      waitress.style({
+        [`#${sb.btn.id}::before`]: sb.arrowDirection(),
+      }, false, 'sidebar_hider_css');
     });
   }
 
-  waitress(`.${barCls}`, () => builder());
+  waitress(`.${sb.class}`, () => builder());
 }
 
 sidebarHide();
@@ -129,12 +165,18 @@ waitress([
   lineHeight: '1.5rem',
 });
 
+// header links size
+waitress('#menu-main-menu', () => waitress.style({
+  '#menu-main-menu .menu-item a': {
+    fontSize: '.8rem',
+  },
+}));
 
 waitress('#main',
   () => waitress.style({
     // site wrapper
     '#page': Object.assign({
-      width: 'calc(21cm + 340px)',
+      maxWidth: '90vw',
       willChange: 'width',
     }, tr),
     // main content
@@ -181,7 +223,7 @@ function lights(daytime) {
 
 
   // background
-  waitress(['#content', '#promotion-message', `.${barCls}`, '#bar-bg', '#bar-btn'], {
+  waitress(['#content', '#promotion-message', `.${sb.class}`, '#bar-bg', '#bar-btn'], {
     backgroundColor: `${on ? '' : 'rgb(59, 36, 30)'}`,
   });
 
@@ -189,7 +231,7 @@ function lights(daytime) {
   waitress([
     'body',
     'p',
-    'sidebar-primary',
+    '.sidebar-primary',
     'h1',
   ], {
     color: `${on ? '' : 'rgb(196, 120, 98)'}`,
