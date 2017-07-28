@@ -148,8 +148,8 @@ waitress(`.${sb.class}`, () => {
 
   // change arrow direction depending on sidebar status
   sb.arrowDirection = () => ({
-    left: `calc(25px - 15px${sb.hidden ? '' : ' - 15px / 2'})`,
-    transform: `rotate(${sb.hidden ? '225' : '45'}deg)`,
+    left: `calc(10px${sb.hidden ? '' : ' - 15px / 2'})`,
+    borderWidth: `${sb.hidden ? '0 0 2px 2px' : '2px 2px 0 0'}`,
   });
 
   waitress.style({
@@ -160,19 +160,18 @@ waitress(`.${sb.class}`, () => {
       height: '50px',
       left: '-25px',
       position: 'absolute',
-      top: '25%',
+      top: `${Math.round(window.innerHeight / 2)}px`,
       width: '50px',
       zIndex: '1',
     },
     [`#${sb.btn.id}::before`]: Object.assign({
-      border: '2px solid',
-      borderBottom: '0',
-      borderLeft: '0',
+      borderStyle: 'solid',
       borderRadius: '3px',
       content: '""',
       height: '15px',
       position: 'absolute',
-      top: 'calc(25px - 15px / 2)', /* calc((sb.btn width / 2) - (::before width / 2)) */
+      top: '17px', /* (50px(btn height) / 2) - (21.2px(diagonal) / 2) + 3px(borders) */
+      transform: 'rotate(45deg)',
       width: '15px',
     }, sb.arrowDirection(), tr),
   }, false, 'sidebar_hider_css');
@@ -331,12 +330,10 @@ function lights(daytime) {
 
 
   // disqus window send msg to change theme
-  waitress('#dsq-app1', () => {
-    document.querySelector('iframe[id^=dsq-app]').contentWindow.postMessage(
-      `${on ? 'day' : 'night'}`,
-      'https://disqus.com',
-    );
-  });
+  document.querySelector('iframe[id^=dsq-app]').contentWindow.postMessage(
+    `${on ? 'day' : 'night'}`,
+    'https://disqus.com',
+  );
 }
 
 // btn from daynight.js
