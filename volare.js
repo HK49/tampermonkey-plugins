@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
-// @version        0.12
+// @version        0.14
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -332,7 +332,7 @@ function lights(daytime) {
 
   // disqus window send msg to change theme
   waitress('#dsq-app1', () => {
-    document.getElementById('dsq-app1').contentWindow.postMessage(
+    document.querySelector('iframe[id^=dsq-app]').contentWindow.postMessage(
       `${on ? 'day' : 'night'}`,
       'https://disqus.com',
     );
