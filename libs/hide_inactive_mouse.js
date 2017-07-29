@@ -1,14 +1,11 @@
 const mouse = {
-  style: (el, display = 'auto') => (el.style.cursor = display),
-  move: (t, el) => {
+  style: (e = document.documentElement, rule = 'auto') => (e.style.cursor = rule),
+  move: (t = 3e3, e) => {
     clearTimeout(mouse.timer);
-    mouse.style(el);
-    mouse.timer = setTimeout(() => mouse.style(el, 'none'), t);
+    mouse.style(e);
+    mouse.timer = setTimeout(() => mouse.style(e, 'none'), t);
   },
-  hide: (t = 3e3, el = document.documentElement) => document.addEventListener(
-    'mousemove',
-    () => mouse.move(t, el),
-  ),
+  hide: (t, e) => document.addEventListener('mousemove', () => mouse.move(t, e)),
 };
 
 // call: mouse.hide(time/*optional*/);
