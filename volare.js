@@ -18,7 +18,7 @@
 // color scheme
 const scheme = {
   first: l => `hsl(28, 50%, ${l}%)`,
-  second: l => `hsl(14, 50%, ${l}%)`,
+  second: (l, a = 1) => `hsla(14, 50%, ${l}%, ${a})`,
   third: l => `hsl(14, 36%, ${l}%)`,
 };
 
@@ -49,19 +49,19 @@ if (window.location.host === `disqus.com`) {
 
 // style scrollbar
 waitress('html', () => {
+  const rules = (z = 0) => ({
+    backgroundClip: `padding-box`,
+    border: `2px solid transparent`,
+    zIndex: `${1e4 + z}`,
+  });
   waitress.style({
     'html::-webkit-scrollbar': {
-      width: '4px',
+      height: '8px',
+      width: '8px',
     },
-    'html::-webkit-scrollbar-track': {
-      background: 'hsla(14, 43%, 56%, .4)',
-      zIndex: `${1e4}`,
-    },
-    'html::-webkit-scrollbar-thumb': {
-      background: 'hsla(14, 43%, 56%, .8)',
-      zIndex: `${1e4 + 1}`,
-    },
-  });
+    'html::-webkit-scrollbar-track': rules(),
+    'html::-webkit-scrollbar-thumb': rules(1),
+  }, false, 'scrollbar_style');
 });
 
 
@@ -252,10 +252,12 @@ function lights(daytime) {
   // body, disqus wrapper background
   waitress([
     'body',
+    'html',
     '#disqus_thread',
   ], {
     background: `${on ? scheme.first(66) : scheme.third(33)}`,
   });
+
 
   // navbar
   waitress('.nav-primary', () => {
@@ -330,10 +332,24 @@ function lights(daytime) {
 
 
   // disqus window send msg to change theme
-  document.querySelector('iframe[id^=dsq-app]').contentWindow.postMessage(
-    `${on ? 'day' : 'night'}`,
-    'https://disqus.com',
-  );
+  waitress('iframe[id^=dsq-app]', () => {
+    document.querySelector('iframe[id^=dsq-app]').contentWindow.postMessage(
+      `${on ? 'day' : 'night'}`,
+      'https://disqus.com',
+    );
+  });
+
+
+  // scrollbar
+  waitress('html', () => {
+    const bg = (l, a = 0.4) => ({ backgroundColor: scheme.second(l, a) });
+    waitress.style({
+      'html::-webkit-scrollbar-track': on ? bg(44) : bg(55),
+      'html::-webkit-scrollbar-track:hover': on ? bg(44, 0.5) : bg(55, 0.5),
+      'html::-webkit-scrollbar-thumb': on ? bg(44, 0.6) : bg(55, 0.7),
+      'html::-webkit-scrollbar-thumb:hover': on ? bg(44, 0.8) : bg(55, 0.9),
+    }, false, 'scrollbar_style');
+  });
 }
 
 // btn from daynight.js
