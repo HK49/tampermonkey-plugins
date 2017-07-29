@@ -1,15 +1,11 @@
 const mouse = {
-  timer: (t = 2e3) => setTimeout(
-    () => (document.documentElement.style.cursor = 'none'),
-    t,
-  ),
-  hide: (t) => {
-    document.addEventListener('mousemove', () => {
-      clearTimeout(mouse.timer);
-      document.documentElement.style.cursor = 'auto';
-      mouse.timer(t);
-    });
+  style: (display = 'auto') => (document.documentElement.style.cursor = display),
+  move: (t) => {
+    clearTimeout(mouse.timer);
+    mouse.style();
+    mouse.timer = setTimeout(() => mouse.style('none'), t);
   },
+  hide: (t = 3e3) => document.addEventListener('mousemove', () => mouse.move(t)),
 };
 
 // call: mouse.hide(time/*optional*/);
