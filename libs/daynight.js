@@ -1,23 +1,70 @@
-function dayNight(day, night) {
+/* global SunCalc */
+
+async function dayNight(day, night) {
   // syntax: dayNight((function() { day opts }), (function() { night opts }));
-  if (dayNight.arguments.length !== 2) {
-    return window.console.error("dayNight function should have day and night opts!");
-  }
-
-  // boolean for page state: restore or apply day mode
-  let darkened = (() => {
-    const store = localStorage.darkened;
-    return (/^(true|false)$/).test(store) ? JSON.parse(store) : false;
-  })();
-
-  const lights = {
-    on() { day.bind(document).apply(); },
-    off() { night.bind(document).apply(); },
-  };
 
   if (!document.body) {
-    window.requestAnimationFrame(() => dayNight(day, night));
-  } else {
+    return window.requestAnimationFrame(() => dayNight(day, night));
+  }
+
+  // if (dayNight.arguments.length !== 2) {
+  //   return window.console.error("dayNight function should have day and night opts!");
+  // }
+  // TypeError: 'caller' and 'arguments' are restricted function properties
+  // and cannot be accessed in this context.
+
+  // check if location is secure (needed for getCurrentPosition in auto mode)
+  const secure = window.location.protocol === 'https:';
+
+  // stores settings
+  const store = localStorage.daynight;
+
+
+  const settings = (async () => {
+    const mode = (!secure && 'manual') || (store && JSON.parse(store).mode) || 'auto';
+
+    const darkened = (async () => {
+      if (mode === 'auto') {
+        await fetch('https://cdn.rawgit.com/mourner/suncalc/master/suncalc.js')
+          .then((git) => {
+            if (git.status === 200) { return git.text(); }
+            throw new Error(`${git.status}. Couldn't fetch suncalc from git.`);
+          })
+          .then(eval)
+          .catch(window.console.error);
+
+        const coords = {};
+        ['latitude', 'longitude'].forEach((e) => {
+          navigator.geolocation.getCurrentPosition(pos => (coords[e] = pos.coords[e]));
+          // no getCurrentPosition() for insecure http in chrome
+        });
+
+        if (Object.keys(coords).length === 0) {
+        // if user blocked request to geolocate
+          return store ? JSON.parse(store).darkened : false;
+        }
+
+        const times = SunCalc.getTimes(new Date(), coords.latitude, coords.longitude);
+
+        return (new Date() > times.sunset && new Date() < times.sunrise);
+        // darkened === true if in the above range
+      }
+      return store ? JSON.parse(store).darkened : false;
+      // if mode is not auto then look into store or set default(false)
+    })();
+    return { mode, darkened };
+  })();
+  // settings.then(e => e.darkened.then(a => console.log(e.mode, a)));
+
+  settings.then(s => s.darkened.then((theme) => {
+    let darkened = theme;
+    const mode = s.mode;
+
+    const lights = {
+      on() { day.bind(document).apply(); },
+      off() { night.bind(document).apply(); },
+    };
+
     const icons = { sun: "\u2600\uFE0E", moon: "\u263D" };
 
     const btn = document.createElement("div");
@@ -31,6 +78,8 @@ function dayNight(day, night) {
       zIndex: String(1e+4),
     });
     document.body.insertBefore(btn, document.body.firstElementChild);
+
+    // TODO: add button to change mode
 
     const switchingCSS = () => ({
       bottom: `${darkened ? 10 : 8}px`,
@@ -70,8 +119,11 @@ function dayNight(day, night) {
       darkened = !darkened;
       switchStyle();
     };
-  }
 
-  window.addEventListener("beforeunload", () => (localStorage.darkened = darkened));
-  // store mode for staying the same in night/day mode;
+    window.addEventListener(
+      "beforeunload",
+      () => (localStorage.daynight = JSON.stringify({ mode, darkened })),
+    );
+    // store mode for staying the same in night/day mode;
+  }));
 }
