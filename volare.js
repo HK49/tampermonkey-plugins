@@ -9,7 +9,7 @@
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/daynight.js
 // @require        https://rawgit.com/HK49/tampermonkey-plugins/master/libs/fontsize.js
-// @version        0.14
+// @version        0.15
 // @grant          GM_addStyle
 // @run-at         document-start
 // ==/UserScript==
@@ -232,6 +232,12 @@ waitress('#content', {
   waitress(`#${e}`, () => document.getElementById(e).remove());
 });
 
+// remove css
+document.addEventListener('load', () => {
+  [...document.getElementsByTagName('style')]
+    .map(a => (/body.*font/).test(a.innerText) && a.remove());
+}, { once: true });
+
 // promotion message
 waitress('#promotion-message', { border: '1px solid' });
 // promotion message can now have more width, that we removed custom css btn
@@ -326,7 +332,7 @@ function lights(daytime) {
     color: `${on ? scheme.second(52) : scheme.second(48)}`,
   });
 
-  waitress('a:hover', {
+  waitress('a:hover, a:focus, a:active', {
     color: `${on ? scheme.second(62) : scheme.second(38)}`,
   });
 
@@ -340,14 +346,28 @@ function lights(daytime) {
   });
 
 
+  // scroll to top button
+  waitress('#scrollup', () => waitress.style({
+    '#scrollup': {
+      border: `1px solid ${on ? scheme.second(55) : scheme.third(52)}`,
+      backgroundColor: scheme.second(55, 0.3),
+      boxShadow: 'none',
+    },
+    '#scrollup:hover': {
+      backgroundColor: scheme.second(55, 0.6),
+    },
+  }, false, 'scrollup_style'));
+
+
   // scrollbar
   waitress('html', () => {
     const bg = (l, a = 0.4) => ({ backgroundColor: scheme.second(l, a) });
+    const scr = 'html::-webkit-scrollbar-';
     waitress.style({
-      'html::-webkit-scrollbar-track': on ? bg(44) : bg(55),
-      'html::-webkit-scrollbar-track:hover': on ? bg(44, 0.5) : bg(55, 0.5),
-      'html::-webkit-scrollbar-thumb': on ? bg(44, 0.6) : bg(55, 0.7),
-      'html::-webkit-scrollbar-thumb:hover': on ? bg(44, 0.8) : bg(55, 0.9),
+      [`${scr}track`]: on ? bg(44) : bg(55),
+      [`${scr}track:hover`]: on ? bg(44, 0.5) : bg(55, 0.5),
+      [`${scr}thumb`]: on ? bg(44, 0.6) : bg(55, 0.7),
+      [`${scr}thumb:hover`]: on ? bg(44, 0.8) : bg(55, 0.9),
     }, false, 'scrollbar_style');
   });
 }
