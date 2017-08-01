@@ -7,12 +7,6 @@ async function dayNight(day, night) {
     return window.requestAnimationFrame(() => dayNight(day, night));
   }
 
-  // if (dayNight.arguments.length !== 2) {
-  //   return window.console.error("dayNight function should have day and night opts!");
-  // }
-  // TypeError: 'caller' and 'arguments' are restricted function properties
-  // and cannot be accessed in this context.
-
   // check if location is secure (needed for getCurrentPosition in auto mode)
   const secure = window.location.protocol === 'https:';
 
@@ -33,32 +27,38 @@ async function dayNight(day, night) {
           .then(eval)
           .catch(window.console.error);
 
-        const coords = {};
-        ['latitude', 'longitude'].forEach((e) => {
-          navigator.geolocation.getCurrentPosition(pos => (coords[e] = pos.coords[e]));
-          // no getCurrentPosition() for insecure http in chrome
-        });
+        return new Promise(
+          geo => navigator.geolocation.getCurrentPosition(geo),
+        ).then(
+          (pos) => {
+            const { latitude: lat, longitude: lon } = pos.coords;
+            const date = new Date().getTime();
 
-        if (Object.keys(coords).length === 0) {
-        // if user blocked request to geolocate
-          return store ? JSON.parse(store).darkened : false;
-        }
+            const times = SunCalc.getTimes(date, lat, lon);
 
-        const times = SunCalc.getTimes(new Date(), coords.latitude, coords.longitude);
-
-        return (new Date() > times.sunset && new Date() < times.sunrise);
-        // darkened === true if in the above range
+            return (() => {
+              switch (true) {
+                case (date > times.sunset.getTime()): return true;
+                case (date > times.sunrise.getTime()): return false;
+                case (date < times.sunrise.getTime()): return true;
+                default: return false;
+              }
+            })();
+          },
+          err => window.console.warn(err),
+        );
       }
       return store ? JSON.parse(store).darkened : false;
       // if mode is not auto then look into store or set default(false)
     })();
+    darkened.then(e => window.console.log(e));
     return { mode, darkened };
   })();
   // settings.then(e => e.darkened.then(a => console.log(e.mode, a)));
 
   settings.then(s => s.darkened.then((theme) => {
     let darkened = theme;
-    const mode = s.mode;
+    let mode = s.mode;
 
     const lights = {
       on() { day.bind(document).apply(); },
@@ -67,7 +67,10 @@ async function dayNight(day, night) {
 
     const icons = { sun: "\u2600\uFE0E", moon: "\u263D" };
 
-    const btn = document.createElement("div");
+    const btn = document.body.insertBefore(
+      document.createElement("div"),
+      document.body.firstElementChild,
+    );
     btn.setAttribute("id", "night_btn");
     Object.assign(btn.style, {
       color: 'inherit',
@@ -77,9 +80,6 @@ async function dayNight(day, night) {
       position: 'fixed',
       zIndex: String(1e+4),
     });
-    document.body.insertBefore(btn, document.body.firstElementChild);
-
-    // TODO: add button to change mode
 
     const switchingCSS = () => ({
       bottom: `${darkened ? 10 : 8}px`,
@@ -119,6 +119,45 @@ async function dayNight(day, night) {
       darkened = !darkened;
       switchStyle();
     };
+
+    const modebtn = document.body.insertBefore(
+      document.createElement("div"),
+      btn.nextElementSibling,
+    );
+    modebtn.setAttribute('id', 'night_btn_mode');
+    Object.assign(modebtn.style, {
+      color: 'red',
+      cursor: 'pointer',
+      position: 'fixed',
+      zIndex: String(1e+4),
+      bottom: '35px',
+      left: '38px',
+    });
+    const modebtnText = () => `change mode to ${mode === 'auto' ? 'manual' : 'auto'}`;
+    modebtn.innerText = modebtnText();
+    modebtn.onclick = () => {
+      mode = (mode === 'auto') ? 'manual' : 'auto';
+      modebtn.innerText = modebtnText();
+    };
+    try {
+      waitress();
+    } catch (e) {
+      fetch('https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js')
+        .then((git) => {
+          if (git.status === 200) { return git.text(); }
+          throw new Error(`${git.status}. Couldn't fetch waitress from git.`);
+        })
+        .then(eval)
+        .catch(window.console.error);
+    }
+    waitress.style({
+      '#night_btn_mode': {
+        display: 'none',
+      },
+      '#night_btn_mode:hover, #night_btn:hover + #night_btn_mode': {
+        display: 'block',
+      },
+    });
 
     window.addEventListener(
       "beforeunload",
