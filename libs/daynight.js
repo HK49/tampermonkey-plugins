@@ -1,6 +1,6 @@
 /* global SunCalc */
 
-async function dayNight(day, night) {
+function dayNight(day, night) {
   // syntax: dayNight((function() { day opts }), (function() { night opts }));
 
   // check if location is secure (needed for getCurrentPosition in auto mode)
@@ -15,9 +15,7 @@ async function dayNight(day, night) {
   };
 
   // before fetching - retrieve darkened value to force premature reflow
-  if (store) {
-    JSON.parse(store).darkened ? lights.off() : lights.on();
-  }
+  if (store) { JSON.parse(store).darkened ? lights.off() : lights.on(); }
 
   const settings = (async () => {
     const mode = (!secure && 'manual') || (store && JSON.parse(store).mode) || 'auto';
@@ -58,7 +56,7 @@ async function dayNight(day, night) {
     })();
     return { mode, darkened };
   })();
-  // settings.then(e => e.darkened.then(a => console.log(e.mode, a)));
+
 
   settings.then(s => s.darkened.then((theme) => {
     let darkened = theme;
@@ -66,7 +64,7 @@ async function dayNight(day, night) {
 
     darkened ? lights.off() : lights.on();
 
-    (function btns() {
+    (async function btns() {
       if (!document.body) {
         return window.requestAnimationFrame(btns);
       }
@@ -131,24 +129,18 @@ async function dayNight(day, night) {
         btn.nextElementSibling,
       );
       modebtn.setAttribute('id', 'night_btn_mode');
-      Object.assign(modebtn.style, {
-        color: 'red',
-        cursor: 'pointer',
-        position: 'fixed',
-        zIndex: String(1e+4),
-        bottom: '35px',
-        left: '38px',
-      });
       const modebtnText = () => `change mode to ${mode === 'auto' ? 'manual' : 'auto'}`;
       modebtn.innerText = modebtnText();
+
       modebtn.onclick = () => {
         mode = (mode === 'auto') ? 'manual' : 'auto';
         modebtn.innerText = modebtnText();
       };
+
       try {
         waitress();
       } catch (e) {
-        fetch('https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js')
+        await fetch('https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js')
           .then((git) => {
             if (git.status === 200) { return git.text(); }
             throw new Error(`${git.status}. Couldn't fetch waitress from git.`);
@@ -156,9 +148,21 @@ async function dayNight(day, night) {
           .then(eval)
           .catch(window.console.error);
       }
+
       waitress.style({
         '#night_btn_mode': {
+          backgroundColor: 'inherit',
+          border: '1px solid',
+          borderRadius: '4px',
+          bottom: '36px',
+          color: 'inherit',
+          cursor: 'pointer',
           display: 'none',
+          fontSize: '0.6em',
+          left: '38px',
+          padding: '0 0.6em',
+          position: 'fixed',
+          zIndex: String(1e+4),
         },
         '#night_btn_mode:hover, #night_btn:hover + #night_btn_mode': {
           display: 'block',
