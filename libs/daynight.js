@@ -124,50 +124,53 @@ function dayNight(day, night) {
         // should add if clicked - change mode to manual?
       };
 
-      const modebtn = document.body.insertBefore(
-        document.createElement("div"),
-        btn.nextElementSibling,
-      );
-      modebtn.setAttribute('id', 'night_btn_mode');
-      const modebtnText = () => `change mode to ${mode === 'auto' ? 'manual' : 'auto'}`;
-      modebtn.innerText = modebtnText();
-
-      modebtn.onclick = () => {
-        mode = (mode === 'auto') ? 'manual' : 'auto';
+      if (secure) {
+        // can have auto mode only on secure locations for now
+        const modebtn = document.body.insertBefore(
+          document.createElement("div"),
+          btn.nextElementSibling,
+        );
+        modebtn.setAttribute('id', 'night_btn_mode');
+        const modebtnText = () => `change mode to ${mode === 'auto' ? 'manual' : 'auto'}`;
         modebtn.innerText = modebtnText();
-      };
 
-      try {
-        waitress();
-      } catch (e) {
-        await fetch('https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js')
-          .then((git) => {
-            if (git.status === 200) { return git.text(); }
-            throw new Error(`${git.status}. Couldn't fetch waitress from git.`);
-          })
-          .then(eval)
-          .catch(window.console.error);
+        modebtn.onclick = () => {
+          mode = (mode === 'auto') ? 'manual' : 'auto';
+          modebtn.innerText = modebtnText();
+        };
+
+        try {
+          waitress();
+        } catch (e) {
+          await fetch('https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js')
+            .then((git) => {
+              if (git.status === 200) { return git.text(); }
+              throw new Error(`${git.status}. Couldn't fetch waitress from git.`);
+            })
+            .then(eval)
+            .catch(window.console.error);
+        }
+
+        waitress.style({
+          '#night_btn_mode': {
+            backgroundColor: 'inherit',
+            border: '1px solid',
+            borderRadius: '4px',
+            bottom: '36px',
+            color: 'inherit',
+            cursor: 'pointer',
+            display: 'none',
+            fontSize: '0.6em',
+            left: '38px',
+            padding: '0 0.6em',
+            position: 'fixed',
+            zIndex: String(1e+4),
+          },
+          '#night_btn_mode:hover, #night_btn:hover + #night_btn_mode': {
+            display: 'block',
+          },
+        });
       }
-
-      waitress.style({
-        '#night_btn_mode': {
-          backgroundColor: 'inherit',
-          border: '1px solid',
-          borderRadius: '4px',
-          bottom: '36px',
-          color: 'inherit',
-          cursor: 'pointer',
-          display: 'none',
-          fontSize: '0.6em',
-          left: '38px',
-          padding: '0 0.6em',
-          position: 'fixed',
-          zIndex: String(1e+4),
-        },
-        '#night_btn_mode:hover, #night_btn:hover + #night_btn_mode': {
-          display: 'block',
-        },
-      });
 
       window.addEventListener(
         "beforeunload",
