@@ -109,7 +109,7 @@ var waitress = function(master, job, support) {
 
   waitress.wait = function(one) {
     if(!waitress.started[one]) { waitress.started[one] = Date.now(); }
-    var regex = /(:link|:visited|:hover|:active|:?:before|:?:after)$/;
+    var regex = /(:link|:visited|:focus|:hover|:active|:?:before|:?:after)$/;
     var clean = one;
     while(regex.test(clean)) { clean = clean.split(regex)[0]; }
     while(/^(#|\.)/.test(clean)) { clean = clean.substr(1); }
