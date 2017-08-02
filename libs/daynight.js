@@ -1,7 +1,7 @@
 /* global SunCalc */
 
-function dayNight(day, night) {
-  // syntax: dayNight(() => function() { day opts }, () => function() { night opts });
+function dayNight(day, night, address = 'Kyiv') {
+  // syntax: dayNight(() => function(){day}, () => function(){night}, address);
 
   // check if location is secure (needed for getCurrentPosition in auto mode)
   const secure = window.location.protocol === 'https:';
@@ -18,9 +18,12 @@ function dayNight(day, night) {
   if (store) { JSON.parse(store).darkened ? lights.off() : lights.on(); }
 
   const settings = (async () => {
-    const mode = (!secure && 'manual') || (store && JSON.parse(store).mode) || 'auto';
+    let mode = (!secure && !address && 'manual')
+      || (store && JSON.parse(store).mode)
+      || 'auto';
 
     const darkened = (async () => {
+      const manual = store ? JSON.parse(store).darkened : false;
       if (mode === 'auto') {
         await fetch('https://cdn.rawgit.com/mourner/suncalc/master/suncalc.js')
           .then((git) => {
@@ -32,32 +35,42 @@ function dayNight(day, night) {
 
         return new Promise(
           (geo, err) => navigator.geolocation.getCurrentPosition(geo, err),
-          // only on secure locations. ip services are no-no
+          // only on secure locations
         ).then(
-          (pos) => {
-            const { latitude: lat, longitude: lon } = pos.coords;
-            const date = new Date().getTime();
-
-            const times = SunCalc.getTimes(date, lat, lon);
-
-            // return (date > times.sunset.getTime()) || (date < times.sunrise.getTime());
-            return (() => {
-              switch (true) {
-                case (date > times.sunset.getTime()): return true;
-                case (date > times.sunrise.getTime()): return false;
-                case (date < times.sunrise.getTime()): return true;
-                default: return false;
-              }
-            })();
-          },
+          pos => ({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
           (err) => {
-            // User denied Geolocation
-            window.console.warn(err.message);
-            return store ? JSON.parse(store).darkened : false;
+            window.console.warn(err.message); /* User denied Geolocation or http */
+            // if user denied Geolocation but didn't give address
+            if (!address) { throw new Error('no address provided for daynight'); }
+
+            const gAPI = `//maps.googleapis.com/maps/api/geocode/json?address=`;
+            return fetch(`${window.location.protocol}${gAPI}${address}`)
+              .then(e => e.text())
+              .then((e) => {
+                if (JSON.parse(e).results.length < 1) {
+                  throw new Error('unkown address provided for daynight');
+                }
+                return JSON.parse(e).results[0].geometry.location;
+              })
+              .then(loc => ({ lat: loc.lat, lng: loc.lng }));
+            // get lat & lng with googleapi by user provided entry
           },
-        );
+        ).then(
+          ({ lat, lng }) => {
+            const date = new Date().getTime();
+            // suncalc does all the magic
+            const times = SunCalc.getTimes(date, lat, lng);
+            // true or true/false
+            return date > times.sunset.getTime() || date < times.sunrise.getTime();
+          },
+        ).catch((e) => {
+          window.console.warn(e);
+          mode = 'manual';
+          return manual;
+          // fallback to manual mode;
+        });
       }
-      return store ? JSON.parse(store).darkened : false;
+      return manual;
       // if mode is not auto then look into store or set default(false)
     })();
     return { mode, darkened };
@@ -129,8 +142,7 @@ function dayNight(day, night) {
         // should add if clicked - change mode to manual?
       };
 
-      if (secure) {
-        // can have auto mode only on secure locations for now
+      if (secure || address) {
         const modebtn = document.body.insertBefore(
           document.createElement("div"),
           btn.nextElementSibling,
