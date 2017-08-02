@@ -1,7 +1,7 @@
 /* global SunCalc */
 
 function dayNight(day, night) {
-  // syntax: dayNight((function() { day opts }), (function() { night opts }));
+  // syntax: dayNight(() => function() { day opts }, () => function() { night opts });
 
   // check if location is secure (needed for getCurrentPosition in auto mode)
   const secure = window.location.protocol === 'https:';
@@ -31,7 +31,8 @@ function dayNight(day, night) {
           .catch(window.console.error);
 
         return new Promise(
-          geo => navigator.geolocation.getCurrentPosition(geo),
+          (geo, err) => navigator.geolocation.getCurrentPosition(geo, err),
+          // only on secure locations. ip services are no-no
         ).then(
           (pos) => {
             const { latitude: lat, longitude: lon } = pos.coords;
@@ -39,6 +40,7 @@ function dayNight(day, night) {
 
             const times = SunCalc.getTimes(date, lat, lon);
 
+            // return (date > times.sunset.getTime()) || (date < times.sunrise.getTime());
             return (() => {
               switch (true) {
                 case (date > times.sunset.getTime()): return true;
@@ -48,7 +50,11 @@ function dayNight(day, night) {
               }
             })();
           },
-          err => window.console.warn(err),
+          (err) => {
+            // User denied Geolocation
+            window.console.warn(err.message);
+            return store ? JSON.parse(store).darkened : false;
+          },
         );
       }
       return store ? JSON.parse(store).darkened : false;
@@ -65,9 +71,8 @@ function dayNight(day, night) {
     darkened ? lights.off() : lights.on();
 
     (async function btns() {
-      if (!document.body) {
-        return window.requestAnimationFrame(btns);
-      }
+      if (!document.body) { return window.requestAnimationFrame(btns); }
+
       const icons = { sun: "\u2600\uFE0E", moon: "\u263D" };
 
       const btn = document.body.insertBefore(
@@ -96,7 +101,7 @@ function dayNight(day, night) {
         btn.innerText = (darkened ? icons.sun : icons.moon);
         Object.assign(btn.style, switchingCSS());
       };
-      // changing scope
+
       switchStyle();
 
       let int;
