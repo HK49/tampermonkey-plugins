@@ -1,12 +1,13 @@
 const mouse = {
-  style: (e = document.documentElement, rule = 'auto') => (e.style.cursor = rule),
-  move: (t = 3e3, e) => {
+  style: (el = document.documentElement, rule = 'auto') => (el.style.cursor = rule),
+  move: (e, t = 3e3, el) => {
     clearTimeout(mouse.timer);
-    mouse.style(e);
-    mouse.timer = setTimeout(() => mouse.style(e, 'none'), t);
+    if (mouse.x !== e.clientX || mouse.y !== e.clientY) { mouse.style(el); }
+    ({ clientX: mouse.x, clientY: mouse.y } = e);
+    mouse.timer = setTimeout(() => mouse.style(el, 'none'), t);
   },
-  hide: (t, e) => document.addEventListener('mousemove', () => mouse.move(t, e)),
+  hide: (t, el) => self.addEventListener('mousemove', e => mouse.move(e, t, el)),
 };
 
-// call: mouse.hide(time/*optional*/);
+// call: mouse.hide(time/*optional*/, element/*optional*/);
 // webkit doesn't update cursor if dev tools are opened
