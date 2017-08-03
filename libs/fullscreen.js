@@ -17,12 +17,9 @@ function fullScreen() {
         'https://rawgit.com/HK49/tampermonkey-plugins/master/libs/waitress.js'
       ).then(
         (git) => {
-          if (git.status === 200) {
-            return git.text();
-          } else {
-            throw new Error(`${git.status}. Couldn't fetch waitress. fullScreen() failed.`);
-          }
-        }
+          if (git.status === 200) { return git.text(); }
+          throw new Error(`${git.status}. Couldn't fetch waitress. fullScreen() failed.`);
+        },
       ).then(eval)
     )
     .then(() => {
@@ -102,7 +99,15 @@ function fullScreen() {
           full = false;
           reqF.bind(document).apply();
         }
-        setTimeout(() => (document.body.scrollTop = scrollPos), 200);
+        // catches change but still flickers
+        ['', 'webkit', 'moz', 'ms'].forEach((vendor) => {
+          const feature = document[`on${vendor}fullscreenchange`];
+          if (feature || feature === null) {
+            document.addEventListener(`${vendor}fullscreenchange`, () => {
+              document.body.scrollTop = scrollPos;
+            });
+          }
+        });
         restyle(full);
       }
 
