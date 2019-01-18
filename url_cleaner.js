@@ -49,20 +49,19 @@ async function clean(node) {
 
 (async function read() {
   logger("reads");
-  new MutationObserver(async function(mutations) { /* catch any new node after page load */
+  const param = node => /=http/i.test(node.href); /* filter by presence of url in param */
+
+  new MutationObserver(async function(mutations) { /* any new node after page load */
     for (let mutation of mutations) {
-      for (let node of [...mutation.addedNodes].filter(
-        n => /^(a|link)$/i.test(String(n.tagName)) && !n.dataset.cloned && /=http/i.test(n.href)
-      )) {
-        await clean(node);
-      }
+      const nodes = [...mutation.addedNodes].filter(
+        n => /^(a|link)$/i.test(String(n.tagName)) && !n.dataset.cloned && param(n)
+      );
+      for (let node of nodes) await clean(node);
     }
   }).observe(document.body, { childList: true, subtree: true });
 
-  const array = ['a', 'link'] /* grab all links at loaded page */
-    .map(n => [...document.getElementsByTagName(n)])
-    .flat()
-    .filter(a => /=http/i.test(a.href));
+   /* all links at loaded page */
+  const array = ['a', 'link'].map(n => [...document.getElementsByTagName(n)]).flat().filter(param);
 
   for (let node of array) await clean(node);
 })();
