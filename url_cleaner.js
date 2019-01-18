@@ -1,17 +1,15 @@
 // ==UserScript==
 // @name         Simple href url cleaner from tracking
 // @description  Remove link tracking redirects, link-filter on steam, etc. Will only work if real url is present in href url params
-// @version      17.01.19
+// @version      18.01.19
 // @author       HK49
 // @license      MIT
-// @include      /^https?\:\/\/.+/
+// @include      /^http/
 // @grant        none
 // @run-at       document-idle
 // @updateURL    https://github.com/HK49/tampermonkey-plugins/raw/stable/url_cleaner.js
 // @downloadURL  https://github.com/HK49/tampermonkey-plugins/raw/stable/url_cleaner.js
 // ==/UserScript==
-// NB: link-shorteners are out of scope of this script
-// Chrome 69+
 
 const logger = function (state, obj = ':C') {
   return; /* turned off */
@@ -43,25 +41,28 @@ async function clean(node) {
   clone.setAttribute("data-cloned", "yes"); /* to  not blow up computer by listener */
   clone.href = link;
 
-  await new Promise(r => setTimeout(r, 60));
-  window.requestAnimationFrame(document.replaceChild.bind(node.parentNode, clone, node));
+  await new Promise(window.requestAnimationFrame); /* prevent? layout trashing */
+  node.parentNode.replaceChild(clone, node);
 
   logger("ended", clone);
 }
 
 (async function read() {
   logger("reads");
-  new MutationObserver((mutations) => { /* catch any new node after page load */
-    mutations.forEach((mutation) => {
-      [...mutation.addedNodes].filter(
+  new MutationObserver(async function(mutations) { /* catch any new node after page load */
+    for (let mutation of mutations) {
+      for (let node of [...mutation.addedNodes].filter(
         n => /^(a|link)$/i.test(String(n.tagName)) && !n.dataset.cloned && /=http/i.test(n.href)
-      ).forEach(clean) /* TODO: test on layout trashing */
-    })
+      )) {
+        await clean(node);
+      }
+    }
   }).observe(document.body, { childList: true, subtree: true });
 
   const array = ['a', 'link'] /* grab all links at loaded page */
-    .flatMap(n => [...document.getElementsByTagName(n)])
+    .map(n => [...document.getElementsByTagName(n)])
+    .flat()
     .filter(a => /=http/i.test(a.href));
 
-  for (let node of array) await clean(node); /* one at a time */
+  for (let node of array) await clean(node);
 })();
