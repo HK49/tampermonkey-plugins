@@ -39,6 +39,7 @@ document.domain = "mangadex.org";
 
 
   // TODO: error handling & logging. clean the code
+  // TODO: don't download mangasushi credit page gif over 13mb
   // TODO [optional]: download all chapters at once button
   // TODO: think of something if captcha returns. Just notify user on 404?
 
@@ -135,7 +136,6 @@ document.domain = "mangadex.org";
 
     const pages = await pagesToDownload(chapter, previousDownload);
     // retrieve remaining pages from the last errored download or initiate new array to fetch
-
 
     document.body.appendChild(Object.assign(document.createElement('iframe'), {
       height: 0,
@@ -354,14 +354,13 @@ document.domain = "mangadex.org";
       (() => {
         function idbSave(blob, chapter, page) {
           return new Promise((resolve, reject) => {
-            if (!blob) reject(Error`error creating blob from ${chapter.src + page}`);
-            self.console.log(`created blob from ${chapter.src + page} ${blob.size}b`);
+            if (!blob) reject(Error(`error creating blob from ${chapter.src + page}`));
 
             const request = indexedDB.open(chapter.id);
             request.onsuccess = (event) => {
               const storage = event.target.result.transaction("downloads", "readwrite").objectStore("downloads");
-              const req = storage.get(page);
-              req.onsuccess = (e) => {
+              const getPage = storage.get(page);
+              getPage.onsuccess = (e) => {
                 const data = e.target.result;
 
                 data.blob = blob;
@@ -369,12 +368,12 @@ document.domain = "mangadex.org";
 
                 const update = storage.put(data);
                 update.onsuccess = (_) => {
-                  self.console.log(`blob saved in IDB ${chapter.src + page}`);
                   event.target.result.close();
                   resolve();
                 };
                 update.onerror = err => reject(err);
-              }
+              };
+              getPage.onerror = err => reject(err);
             };
             request.onerror = e => reject(e);
           });
@@ -426,18 +425,17 @@ document.domain = "mangadex.org";
   function save([page, buffer], chapter) {
     // the promise stored in the Promise.all array in process function
     return new Promise((resolve, reject) => {
-      page = page.match(/\w\d+\.(\w{3,4})$/);
+      page = page.match(/\w?\d+\.(\w{3,4})$/);
 
       resolver[page[0]] = resolve;
       rejector[page[0]] = reject;
 
       worker.postMessage([page, { ...chapter, db: null }, buffer], [buffer]);
-    })
+    });
   }
 
 
   async function generateZip(chapter) { // generate and download zip
-    window.console.log(`began to generate and download zip`);
     const zip = new JSZip();
     let zipSize = 0;
 
@@ -461,14 +459,17 @@ document.domain = "mangadex.org";
 
     addData().then(async () => {
       await zip.generateAsync({ type: "blob" }).then((file) => {
-        window.console.log(`generated zip with size of ${zipSize}b`);
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(file);
-        a.type = 'application/zip';
-        a.target = '_blank';
-        a.download = `${document.title.match(/^.+(?=\s\(Title)/)} ${chapter.title}.zip`;
-        a.click();
-        a.remove();
+        const normalisedZipSize = ((k = 1024, kiB = zipSize/k, miB = kiB/k) => {
+          return miB < 1 ? `${Math.round(kiB)}kb` : `${miB.toFixed(2)}mb`;
+        })();
+        window.console.log(`generated zip with size of ${normalisedZipSize}.`);
+
+        (Object.assign(document.createElement('a'), {
+          download: `${document.title.match(/^.+(?=\s\(Title)/)} ${chapter.title}.zip`,
+          href: URL.createObjectURL(file),
+          type: 'application/zip',
+          target: '_blank',
+        })).click();
         URL.revokeObjectURL(file);
 
         progress.complete(chapter.id);
