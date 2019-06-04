@@ -439,7 +439,7 @@ document.domain = "mangadex.org";
     const zip = new JSZip();
     let zipSize = 0;
 
-    const addData = () => new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const getData = chapter.db.transaction("downloads").objectStore("downloads").openCursor();
       getData.onsuccess = (event) => {
         const cursor = event.target.result;
@@ -457,26 +457,24 @@ document.domain = "mangadex.org";
       getData.onerror = e => reject(e);
     });
 
-    addData().then(async () => {
-      await zip.generateAsync({ type: "blob" }).then((file) => {
-        const normalisedZipSize = ((k = 1024, kiB = zipSize/k, miB = kiB/k) => {
-          return miB < 1 ? `${Math.round(kiB)}kb` : `${miB.toFixed(2)}mb`;
-        })();
-        window.console.log(`generated zip with size of ${normalisedZipSize}.`);
+    const file = await zip.generateAsync({ type: "blob" });
 
-        (Object.assign(document.createElement('a'), {
-          download: `${document.title.match(/^.+(?=\s\(Title)/)} ${chapter.title}.zip`,
-          href: URL.createObjectURL(file),
-          type: 'application/zip',
-          target: '_blank',
-        })).click();
-        URL.revokeObjectURL(file);
+    const normalisedZipSize = ((k = 1024, kiB = zipSize/k, miB = kiB/k) => {
+      return miB < 1 ? `${Math.round(kiB)}kb` : `${miB.toFixed(2)}mb`;
+    })();
+    window.console.log(`generated zip with size of ${normalisedZipSize}.`);
 
-        progress.complete(chapter.id);
-        chapter.db.close(); // remove db on success
-        indexedDB.deleteDatabase(chapter.id);
-      }).catch(e => progress.error(e, chapter.id));
-      await new Promise(r => setTimeout(r, 3e3)); // give time to save file
-    });
+    (Object.assign(document.createElement('a'), {
+      download: `${document.title.match(/^.+(?=\s\(Title)/)} ${chapter.title}.zip`,
+      href: URL.createObjectURL(file),
+      type: 'application/zip',
+      target: '_blank',
+    })).click();
+    URL.revokeObjectURL(file);
+
+    progress.complete(chapter.id);
+    chapter.db.close(); // remove db on success
+    indexedDB.deleteDatabase(chapter.id);
+    await new Promise(r => setTimeout(r, 3e3)); // give time to save file
   }
 })();
