@@ -48,16 +48,14 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
   // createbutton and append function to click event
   function createBtn(parent) {
-    const btn = document.createElement("span");
     const { id } = parent.dataset;
-
-    btn.style = "cursor: pointer; position: absolute; left: 3px;";
-    btn.title = `Download chapter`;
-    btn.id = `btn${id}`;
-    btn.innerText = "\u2B73";
-    btn.onclick = download.bind(this, id);
-
-    parent.prepend(btn);
+    parent.prepend(Object.assign(document.createElement("span"), {
+      id: `btn${id}`,
+      innerText: "\u2B73",
+      onclick: download.bind(this, id),
+      style: "cursor: pointer; position: absolute; left: 3px;",
+      title: `Download chapter`,
+    }));
   }
 
 
@@ -459,7 +457,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     const normalisedZipSize = ((k = 1024, kiB = zipSize/k, miB = kiB/k) => {
       return miB < 1 ? `${Math.round(kiB)}kb` : `${miB.toFixed(2)}mb`;
     })();
-    log(`generated zip with size of ${normalisedZipSize}.`, '#0A3');
+    log(`generated zip with size of %c${normalisedZipSize}`, '#0A3', 'color: #00F; font-weight: 300;');
 
     (Object.assign(document.createElement('a'), {
       download: `${document.title.match(/^.+(?=\s\(Title)/)} ${chapter.title}.zip`,
@@ -475,10 +473,11 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     await new Promise(r => setTimeout(r, 3e3)); // give time to save file
   }
 
-  function log(message, color) {
+  function log(message, color, more = '') {
     return window.console.log(
       `%c ${message}`,
       `color: ${color};`,
+      more,
     );
   }
 })();
