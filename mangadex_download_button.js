@@ -12,20 +12,16 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.2.0/jszip.min.js#sha256=VwkT6wiZwXUbi2b4BOR1i5hw43XMzVsP88kpesvRYfU=
 // ==/UserScript==
 
-/*
- * Download button is an arrow  on chapter row on manga's title page.
+/* Download button is an arrow left from the eye on chapter row on manga's title page.
  * Progress is shown in chapter row. Can be concurrent.
- * Because it don't use GM_xmlhttpRequest, script creates new invisible frame inside current page,
- * after download is complete/errored the frame is removed.
- * Sometimes manga images are stored not on the main server , but on s6.mangadex.org etc
- * no 'Access-Control-Allow-Origin' header is present on mangadex,
- * it creates a problem when converting image into data to download if image is not from main server
- * if the image is sourced from other domain, saving it with js is forbidden (security reasons)
-*/
-
-document.domain = "mangadex.org";
-// To avoid CORS Error, we need it on both main domain and subdomain
-
+ *
+ * If manga images are stored not on the main server, we can't download them easily
+ * because doing so is forbidden. To overcome this, script creates new window context
+ * this context(frame) has the same origin as images source. But firstly, to access
+ * this new frame we set it's domain to be the same as main domain. As so: */
+document.domain = "mangadex.org"; /* we need it on both main domain and subdomain */
+/* Then we download images in this new frame. After download fails or succeeds
+ * this new frame is deleted. */
 
 (async () => {
   if (!window.location.pathname.startsWith('/title')) return;
@@ -134,6 +130,9 @@ document.domain = "mangadex.org";
     // but even though it will be called, the promise is resolved by onupgradeneeded event
 
 
+    log(`Starting ${previousDownload ? 'previously unfinished' : 'new'} download.`, '#66D');
+
+
     const pages = await pagesToDownload(chapter, previousDownload);
     // retrieve remaining pages from the last errored download or initiate new array to fetch
 
@@ -159,7 +158,6 @@ document.domain = "mangadex.org";
       const request = indexedDB.open(chapter.id);
       request.onsuccess = (event) => { // opened existant from previous cut-off download
         chapter.db = event.target.result;
-        window.console.log('success in IDBOpenDBRequest');
 
         resolve(true);
         /*
@@ -189,7 +187,6 @@ document.domain = "mangadex.org";
             blob: null, // the data to be stored in zip
             saved: 0, // change on succesfull conversion
           }));
-          window.console.log('upgradeneeded in IDBOpenDBRequest');
           resolve(false);
         };
       };
@@ -457,12 +454,12 @@ document.domain = "mangadex.org";
       getData.onerror = e => reject(e);
     });
 
-    const file = await zip.generateAsync({ type: "blob" });
+    const file = await zip.generateAsync({ type: "blob", streamFiles: true });
 
     const normalisedZipSize = ((k = 1024, kiB = zipSize/k, miB = kiB/k) => {
       return miB < 1 ? `${Math.round(kiB)}kb` : `${miB.toFixed(2)}mb`;
     })();
-    window.console.log(`generated zip with size of ${normalisedZipSize}.`);
+    log(`generated zip with size of ${normalisedZipSize}.`, '#0A3');
 
     (Object.assign(document.createElement('a'), {
       download: `${document.title.match(/^.+(?=\s\(Title)/)} ${chapter.title}.zip`,
@@ -476,5 +473,12 @@ document.domain = "mangadex.org";
     chapter.db.close(); // remove db on success
     indexedDB.deleteDatabase(chapter.id);
     await new Promise(r => setTimeout(r, 3e3)); // give time to save file
+  }
+
+  function log(message, color) {
+    return window.console.log(
+      `%c ${message}`,
+      `color: ${color};`,
+    );
   }
 })();
