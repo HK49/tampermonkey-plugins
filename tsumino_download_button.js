@@ -1,7 +1,7 @@
 /* global JSZip */
 // ==UserScript==
 // @name         Tsumino script
-// @version      0.3
+// @version      0.4
 // @author       HK49
 // @license      MIT
 // @include      /^https?://www.tsumino.com/Book/Info/.+/
@@ -10,231 +10,299 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.2.0/jszip.min.js#sha256=VwkT6wiZwXUbi2b4BOR1i5hw43XMzVsP88kpesvRYfU=
 // ==/UserScript==
 
+const TIME_BETWEEN_REQUESTS = 2000/* miliseconds */;
+
 // TODO net::ERR_SPDY_PROTOCOL_ERROR 200 over https (memory issue?)
 // TODO Error Handling
 
-const SIZE_LIMIT = 50/*mb*/; // limit archive size to preserve memory & download in parts | note: max chrome blob size 2gb.
-
-const limit = SIZE_LIMIT * 2**20; // byte representation of SIZE_LIMIT
-
-// logging
-const bytes_to_mb = (bytes, k = 1024, kiB = bytes/k, miB = kiB/k) => miB < 1 ? Math.round(kiB)+'kb' : miB.toFixed(2)+'mb';
-const log = {
-    start: (i, all) => {
-        console.group(`Processing ${i} image out of ${all}`);
-    },
-    loaded: ({ height, width }) => {
-        console.log(`image successfully loaded with dimensions: ${height}px x ${width}px`);
-    },
-    blobed: size => {
-        console.log(`Created blob size: ${bytes_to_mb(size)}`);
-    },
-    waits_archiving: ({ overall, current }) => {
-        console.log(`Total images size: ${bytes_to_mb(overall)}`);
-        if(overall !== current) {
-        console.log(`Current part size: ${bytes_to_mb(current)}`);
-        }
-        console.groupEnd();
-    },
-    archiving: (part, size, last = false) => {
-        const insertion = `${!part ? '' : !last ? `${part} part ` : 'last part '}`;
-        // no parts ? only 1 archive : not last part ? one of sevaral parts : last part
-
-        console.log(`Generating archive ${insertion}with size of ${bytes_to_mb(size)}`);
-    },
-}
-
+const { console } = window;
 
 /* show progress inside button while downloading */
 const progress = {
-    install: btn => { progress.button = btn; },
-    onstart: images_quantity => {
-        progress.button.style = "pointer-events: none; cursor: not-allowed; opacity: 0.8;";
-        const number_of_ticks = images_quantity * ['successfull image load', 'successfull conversion to blob'].length;
-        progress.tick = 100 / (number_of_ticks); // 100%/above
-    },
-    onerror: e => {
-        console.groupEnd(); // end group started with log object
-        console.error(e);
-        progress.button.style = "background-color: #c00;"
-        progress.button.innerText = "\xa0\xa0:'(\xa0\xa0";
-    },
-    nofetch: () => {
-        progress.button.style = "background-color: #ffae33;";
-        progress.button.innerText = "404";
-    },
-    percent: 0,
-    update: () => {
-        progress.percent += progress.tick;
-        const num = Math.floor(progress.percent);
+  install: () => { progress.button = document.getElementById("DownloadButton"); },
+  onstart: (imagesQuantity) => {
+    progress.button.style = "pointer-events: none; cursor: not-allowed; opacity: 0.8;";
+    const numberOfTicks = imagesQuantity * ['image load', 'image save'].length;
+    progress.tick = 100 / (numberOfTicks); // 100%/above
+  },
+  onerror: (e) => {
+    console.error(e);
+    progress.button.style = "background-color: #c00;";
+    progress.button.innerText = "\xa0\xa0:'(\xa0\xa0";
+  },
+  nofetch: () => {
+    progress.button.style = "background-color: #ffae33;";
+    progress.button.innerText = "404";
+  },
+  percent: 0,
+  update: () => {
+    progress.percent += progress.tick;
+    const num = Math.floor(progress.percent);
 
-        progress.button.innerText = `${num < 10 ? '\xa0\xa0' + num : num}%`;
-    },
-    onloadend: () => {
-        progress.button.style = '';
-        progress.button.innerText = '\xa0\xa0\u2B73\xa0\xa0\xa0';
-    },
-    last_downloaded: { // so the download could restart from the last downloaded part if there were some errors
-        image: 0, // if whole download was not separated in parts, then it will begin from the start. nothing can be done, supposedly
-        part: 0,
-    },
+    progress.button.innerText = `${num < 10 ? `\xa0\xa0${num}` : num}%`;
+  },
+  onloadend: () => {
+    progress.button.style = '';
+    progress.button.innerText = '\xa0\xa0\u2B73\xa0\xa0\xa0';
+  },
 };
 
 
-function download(btn) {
-    'use strict';
-
-    const chapter_index = Number(location.pathname.match(/(?<=Info\/)\d+(?=\/)?/));
-
-    progress.install(btn);
+const manga = {
+  id: Number(window.location.pathname.match(/(?<=Info\/)\d+(?=\/)?/)),
+};
 
 
-    /* fetch adapted from tsumino native ajax jquery code */
-    fetch(`/Read/Load?q=${chapter_index}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    .then(res => {
-        if(res.status === 404) throw Error(`Couldn't load the gallery with id=${chapter_index}. Maybe you need to check CAPTCHA.`);
-        if(res.status !== 200) throw Error(`There was an error with requested gallery. ${res.statusText}`);
-        return res.json();
-    })
-    .then(res => {
-        const images_quantity = Number(res.reader_page_total); // number of total pages in gallery
-        const urls = res.reader_page_urls.slice(progress.last_downloaded.image); // array of image hashes
-        // slice is to restart on error from last downloaded part if gallery was downloaded in parts and some image further in que got errored
-        if(isNaN(images_quantity)) throw Error('images quantity is NaN, got response:\n', res);
-        res = null; // don't need response anymore
-
-        progress.onstart(images_quantity);
-
-        urls.reduce(/*process each image one after another*/
-            (promise, url, i) => promise.then(_ => load(url, i + progress.last_downloaded.image).then(blobify).then(archive).catch(progress.onerror)),
-            Promise.resolve()
-        ) // i + progress.last_downloaded.image above is for restarting purpose
-
-        function load(url, i) { // load image and send it to convert into canvas & next into blob
-            return new Promise((resolve, reject) => {
-                const src = `/Image/Object?name=${encodeURIComponent(url)}`;
-                const img = new Image();
-                img.alt = i + 1;
-                log.start(img.alt, images_quantity);
-                img.onload = _ => resolve(img);
-                img.onerror = e => reject(e);
-                img.src = src;
-            });
-        }
-
-        const size = {
-            current: 0, // value for logging purposes. resets with each new archive part if archive is separated in parts
-            overall: 0, // this is total archive/blobs size. is compared with maximum below to separate archives in parts
-            maximum: limit, // this value will be changed with each archive part generated by +limit;
-        };
-        let { part } = progress.last_downloaded; // the variable that is increased with each archive part + to restart on error from last downloaded part
-
-        function blobify(img) { // convert image into blob
-            return new Promise((resolve, reject) => {
-                log.loaded(img);
-                progress.update(); // fisrt update per image on loaded image
-
-                const canvas = document.createElement('canvas');
-                canvas.height = img.height;
-                canvas.width = img.width;
-                const context = canvas.getContext('2d').drawImage(img, 0, 0);
-
-                canvas.toBlob(blob => {
-                    if(blob === null) reject("Blob wasn't generated");
-                    log.blobed(blob.size);
-                    progress.update(); // second update on converted image to blob
-                    const num = Number(img.alt);
-                    resolve([num, blob]);
-                }, 'image/jpeg'); // tsumino stores all images in jpg?
-            });
-        }
-
-        let blobs_array = []; // if total blobs size in array is more then limit set on top of code, then archive it in parts
-        async function archive([i, blob]) {
-            blobs_array.push({
-                name: `${(i < 10 ? "00" : i < 100 ? "0" : "") + i}.jpg`,
-                blob: blob,
-            });
-            size.current += blob.size;
-            size.overall += blob.size;
-            log.waits_archiving(size); // blob waits in array for it to reach size limit or end of gallery to be next converted into archive
-
-            // last archive part or whole archive the size < limit
-            if (i === images_quantity) { // on last image
-                if (part !== 0) { part += 1; } // if the archive is not the only one but the last of parts - change part number for naming
-                log.archiving(part, size.current, true);
-
-                await construct_archive(blobs_array);
-                progress.onloadend();
-                progress.last_downloaded.part = 0;
-                progress.last_downloaded.image = 0;
-            }
-            // separate archives in parts
-            if (size.overall > size.maximum && i + 10 < images_quantity) { // (i + 10 < images_quantity) => to not have next archive with 1-2 images
-                part += 1;
-                size.maximum += limit; // the next part is bigger then the previous by "limit"
-                log.archiving(part, size.current);
-                size.current = 0; // clear current size because this part whould be archived
-
-                await construct_archive(blobs_array);
-                blobs_array = []; // clear blobs array after we archived current part
-                progress.last_downloaded.part = part;
-                progress.last_downloaded.image = i;
-            }
-        }
-
-        async function construct_archive(blobs) {
-            const zip = new JSZip();
-            blobs.map(({ name, blob }) => zip.file(name, blob));
-
-            await zip.generateAsync({ type: "blob" }).then(file => {
-                const name = `${part !== 0 ? `[PART ${part}] ` : ''}${document.title.replace(/\s\|\sTsumino$/, '')}.zip`;
-
-                console.log(`saving ${name}`);
-
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(file);
-                a.type = 'application/zip';
-                a.target = '_blank';
-                a.download = name;
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(file);
-            });
-            await new Promise(r => setTimeout(r, 4e3)); // give time to save file
-        }
-    })
-    .catch(e => {
-        console.error(e);
-        progress.nofetch();
-    });
+// idb helpers
+function requestIDB(request, callback, callback2 = () => {}) {
+  request.onsuccess = event => callback(event);
+  request.onupgradeneeded = event => callback2(event);
+  request.onerror = error => Error(error);
+}
+function cursor(event, callback, oncomplete = () => {}) {
+  const { result } = event.target;
+  if (result) {
+    callback(result.value);
+    result.continue();
+  } else {
+    oncomplete();
+  }
 }
 
-document.addEventListener('DOMContentLoaded', _ => {
-    const btn = document.createElement('button');
-    btn.className = "book-read-button button-stack";
-    btn.innerText = "\xa0\xa0\u2B73\xa0\xa0\xa0"; // "  ⭳   "
-    btn.onclick = e => {
-        e.preventDefault();
-        download(btn);
-    };
-    btn.title = 'Download manga';
 
-    document.querySelector("#complete_form > :last-child > .book-info").appendChild(btn);
+function openDB() {
+  return new Promise((resolve, reject) => {
+    function onPrevious(e) {
+      manga.db = e.target.result;
+      resolve('previous');
+    }
+    function onNew(e) {
+      manga.db = e.target.result;
+
+      const store = manga.db.createObjectStore("download", { keyPath: "hash" });
+      store.createIndex("number", "number", { unique: true });
+      store.createIndex("buffer", "buffer", { unique: false });
+
+      store.transaction.oncomplete = (_) => {
+        const s = manga.db.transaction("download", "readwrite").objectStore("download");
+        manga.hashes.map((hash, i) => s.add({
+          hash,
+          number: (i < 9 ? "00" : i < 99 ? "0" : "") + (i + 1),
+          buffer: 0,
+        }));
+      };
+
+      resolve('new');
+    }
+    try {
+      requestIDB(indexedDB.open(manga.id), onPrevious, onNew);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+
+function requestAPI(responseFormat, path, params, options = {}) {
+  const url = new URL(path, window.location.origin);
+  Object.entries(params).map(([query, value]) => url.searchParams.set(query, value));
+
+  const recaller = (backoff = 3) => fetch(url, options).then(async (response) => {
+    switch (response.status) {
+      case 404: return Error(`Couldn't load the gallery with id=${manga.id}. Maybe you need to check CAPTCHA.`);
+      case 200: return response[responseFormat]();
+      default:
+        if (backoff > 1) {
+          await new Promise(r => setTimeout(r, 1e4 * ~(-5 + backoff)));
+          window.console.warn(`${4 - backoff} retry to get API response on ${response.status}`);
+          return recaller(backoff - 1);
+        }
+        return Error(`Error with request: ${response.status} ${response.statusText}`);
+    }
+  });
+
+  return recaller();
+}
+
+
+async function mangaData() {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  });
+
+  const text = await requestAPI('text', '/Read/Load', { q: manga.id }, { method: 'POST', headers });
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return Error("API response was not JSON.");
+  }
+}
+
+
+async function throttle(time = TIME_BETWEEN_REQUESTS) {
+  if (throttle.time) {
+    /* if time from previous timestamp is less then allowed - throttle it
+     * note: min timeout will launch anyway */
+    await new Promise(r => setTimeout(r, time - ((new Date|0) - throttle.time)));
+  }
+  throttle.time = (new Date|0); // initiate\renew timestamp
+}
+
+
+async function load(url) {
+  await throttle();
+  const buffer = await requestAPI('arrayBuffer', '/Image/Object', { name: url });
+
+  progress.update(); // fisrt update per image on loaded image
+  console.log("LOAD:", url, buffer);
+  return [encodeURIComponent(url), buffer];
+}
+
+
+const worker = new Worker(URL.createObjectURL(new Blob([
+  `(${
+    (() => {
+      function idbSave([hash, mangaID, buffer]) {
+        return new Promise((resolve, reject) => {
+          function idb(request, callback) {
+            request.onsuccess = event => callback(event);
+            request.onerror = error => reject(error);
+          }
+
+          let db;
+          let store;
+          function openTransaction(event) {
+            db = event.target.result;
+            store = db.transaction("download", "readwrite").objectStore("download");
+            idb(store.get(decodeURIComponent(hash)), getImageFromDB);
+          }
+          function getImageFromDB(event) {
+            const data = event.target.result;
+            data.buffer = buffer;
+            idb(store.put(data), putBufferIntoDB);
+          }
+          function putBufferIntoDB() {
+            db.close();
+            resolve(hash);
+          }
+          idb(indexedDB.open(mangaID), openTransaction);
+        });
+      }
+
+      self.onmessage = (event) => {
+        const [hash] = event.data;
+        idbSave(event.data).then(img => postMessage(img))
+          .catch(e => Error(JSON.stringify({ e, hash })));
+      };
+      self.onerror = e => console.warn("Worker got error:\n", e);
+    })
+  })()`
+], { type: 'application/javascript' })));
+
+const rejector = {};
+const resolver = {};
+
+worker.onmessage = (e) => {
+  const hash = e.data;
+  progress.update(manga.id);
+
+  resolver[hash]();
+  delete resolver[hash];
+};
+worker.onerror = ({ message }) => {
+  const { error, hash } = JSON.parse(message);
+  console.error(`Error from worker: ${error.message} on line ${error.lineno}. Image: ${hash}`);
+  rejector[hash]();
+  delete rejector[hash];
+};
+
+function save([hash, buffer]) {
+  return new Promise((resolve, reject) => {
+    resolver[hash] = resolve;
+    rejector[hash] = reject;
+
+    worker.postMessage([hash, manga.id, buffer], [buffer]);
+  });
+}
+
+
+async function download() {
+  progress.install();
+  const mangaJSON = await mangaData().catch((e) => {
+    progress.nofetch();
+    return Error(e);
+  });
+  manga.hashes = mangaJSON.reader_page_urls;
+
+  const status = await openDB();
+  console.log(status);
+
+  if (status === 'new') {
+    manga.length = Number(mangaJSON.reader_page_total);
+    if (isNaN(manga.length)) return Error('images quantity is NaN, got response:\n', mangaJSON);
+  } else if (status === 'previous') {
+    manga.hashes = [];
+    await new Promise(resolve => requestIDB(
+      manga.db.transaction("download").objectStore("download").index("buffer").openCursor(IDBKeyRange.only(0)),
+      e => cursor(e, ({ hash }) => manga.hashes.push(hash), resolve()),
+    ));
+    manga.length = manga.hashes.length;
+  }
+
+  progress.onstart(manga.length);
+
+  return Promise.resolve(manga.hashes.reduce(
+    (start, url) => start.then(queue => load(url).then(data => queue.concat(save(data)))),
+    (async (queue = []) => queue)(),
+  )).then(queued => Promise.all(queued)).then(async () => {
+    const zip = new JSZip();
+
+    await new Promise((resolve, reject) => {
+      requestIDB(
+        manga.db.transaction("download").objectStore("download").openCursor(),
+        e => cursor(e, ({ number, buffer }) => zip.file(`${number}.jpg`, buffer), resolve),
+        reject,
+      );
+    });
+
+    const file = await zip.generateAsync({ type: "blob", streamFiles: true });
+
+    (Object.assign(document.createElement('a'), {
+      download: `${document.title.replace(/\s\|\sTsumino$/, '')}.zip`,
+      href: URL.createObjectURL(file),
+      target: '_blank',
+      type: 'application/zip',
+    })).click();
+    URL.revokeObjectURL(file);
+
+    manga.db.close(); // remove db on success
+    indexedDB.deleteDatabase(manga.id);
+    progress.onloadend();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', (_) => {
+  document
+    .querySelector("#complete_form > :last-child > .book-info")
+    .appendChild(Object.assign(document.createElement('button'), {
+      className: "book-read-button button-stack",
+      id: 'DownloadButton',
+      innerText: "\xa0\xa0\u2B73\xa0\xa0\xa0", // ⭳
+      onclick: (e) => {
+        e.preventDefault();
+        download();
+      },
+      title: 'Download manga',
+    }));
 });
 
 // //censure
-// const style = document.createElement('style');
-// style.type = "text/css";
-// style.id = "tampermonkey";
-// const css_rules = "background: #000; position: absolute; top: 0; left: 0; right: 0; bottom: 0; content: ''; z-index: 999;";
-// style.innerText += `#thumbnails-container .book-grid-item > a:before, .book-page-cover > a:before { ${css_rules} } `;
-// const interval = setInterval(_ => {
-//     document.head.appendChild(style);
-//     if (document.readyState === "complete") clearInterval(interval);
-// }, 60);
+const style = document.createElement('style');
+style.type = "text/css";
+style.id = "tampermonkey";
+const cssRules = "background: #000; position: absolute; top: 0; left: 0; right: 0; bottom: 0; content: ''; z-index: 999;";
+style.innerText += `#thumbnails-container .book-grid-item > a:before, .book-page-cover > a:before { ${cssRules} } `;
+const interval = setInterval((_) => {
+  document.head.appendChild(style);
+  if (document.readyState === "complete") clearInterval(interval);
+}, 60);
