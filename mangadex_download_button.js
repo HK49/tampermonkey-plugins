@@ -67,7 +67,15 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       bar.style = 'background: rgba(23, 162, 184, 0.5); z-index: -1; position: absolute; top: 0; bottom: 0; left: 0;';
       bar.style.right = "100%"; // reduces with each tick
       document.querySelector(`.chapter-row[data-id="${chapterID}"]`).parentNode.appendChild(bar); // chapter row
-      document.getElementById(`btn${chapterID}`).style.pointerEvents = 'none'; // the arrow button
+
+      const btn = document.getElementById(`btn${chapterID}`);
+      btn.innerText = '\u21BB';
+      btn.style.pointerEvents = 'none'; // the arrow button
+      const animation = document.createElement('style');
+      const transform = deg => `transform: rotate(${deg}deg) translateZ(0) translate3d(0, 0, 0)`;
+      animation.innerText = `@keyframes tako { 0% { ${transform(0)}; } 100% { ${transform(360)}; } }`;
+      document.head.appendChild(animation);
+      btn.style.animation = 'tako 500ms 0s linear infinite';
     },
     start: (id, imgQuantity) => {
       progress[id] = {
@@ -87,7 +95,10 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         delete window.frames[`frame${id}`];
       }
 
-      document.getElementById(`btn${id}`).style.pointerEvents = 'all';
+      const btn = document.getElementById(`btn${id}`);
+      btn.style.pointerEvents = 'all';
+      btn.style.animation = null;
+      btn.innerText = "\u2B73";
     },
     complete: (id) => {
       progress[id].bar.style.right = "0";
@@ -142,7 +153,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       /* start image save into IDB right after this image load, not waitong for previous to finish */
       /* image save into IDB are processed in worker. so it's messages queue === saving queue */
       /* zip generation starts only after all images were saved into IDB */
-      src: new URL(pages[0], chapter.src), // overcome CORS image issue by working in subdomain.
+      src: `${chapter.src}/${pages[0]}`, // overcome CORS image issue by working in subdomain.
       style: 'display: none;',
       tabindex: '-1',
       width: 0,
@@ -335,6 +346,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       const request = await window.frames[`frame${chapter.id}`].fetch(chapter.src + page);
       buffer = await request.arrayBuffer();
     } catch (e) {
+      // retry image load ?
       return Error(e);
     }
 
