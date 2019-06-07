@@ -121,11 +121,16 @@ async function download() {
     })).click();
     URL.revokeObjectURL(file);
 
-    manga.db.close(); // remove db on success
+    // remove stuff in end
+    manga.db.close();
     indexedDB.deleteDatabase(manga.id);
+    const downloads = JSON.parse(localStorage.getItem('downloads'));
+    delete downloads[manga.id];
+    localStorage.setItem('downloads', JSON.stringify(downloads));
+
     progress.onloadend();
   }).catch((e) => {
-    console.error(e);
+    window.console.error(e);
     progress.onerror();
   });
 }
@@ -269,7 +274,6 @@ async function load(url) {
   const buffer = await requestAPI('arrayBuffer', '/Image/Object', { name: url });
 
   progress.update(); // fisrt update per image on loaded image
-  console.log("LOAD:", url, buffer);
   return [encodeURIComponent(url), buffer];
 }
 
