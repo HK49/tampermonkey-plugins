@@ -1,7 +1,7 @@
 /* global JSZip */
 // ==UserScript==
 // @name         Tsumino script
-// @version      0.4
+// @version      0.45
 // @author       HK49
 // @license      MIT
 // @include      /^https?://www.tsumino.com/Book/Info/.+/
@@ -15,7 +15,6 @@ const TIME_BETWEEN_REQUESTS = 2000/* miliseconds */;
 // TODO net::ERR_SPDY_PROTOCOL_ERROR 200 over https (memory issue?)
 // TODO Error Handling
 
-const { console } = window;
 
 /* show progress inside button while downloading */
 const progress = {
@@ -25,8 +24,7 @@ const progress = {
     const numberOfTicks = imagesQuantity * ['image load', 'image save'].length;
     progress.tick = 100 / (numberOfTicks); // 100%/above
   },
-  onerror: (e) => {
-    console.error(e);
+  onerror: () => {
     progress.button.style = "background-color: #c00;";
     progress.button.innerText = "\xa0\xa0:'(\xa0\xa0";
   },
@@ -47,29 +45,141 @@ const progress = {
   },
 };
 
-
+// object, that stores db, manga id, array of pages urls, their total length..
 const manga = {
   id: Number(window.location.pathname.match(/(?<=Info\/)\d+(?=\/)?/)),
 };
 
+// add button on page
+document.addEventListener('DOMContentLoaded', (_) => {
+  document
+    .querySelector("#complete_form > :last-child > .book-info")
+    .appendChild(Object.assign(document.createElement('button'), {
+      className: "book-read-button button-stack",
+      id: 'DownloadButton',
+      innerText: "\xa0\xa0\u2B73\xa0\xa0\xa0", // ⭳
+      onclick: (e) => {
+        e.preventDefault();
+        download();
+      },
+      title: 'Download manga',
+    }));
+});
 
-// idb helpers
-function requestIDB(request, callback, callback2 = () => {}) {
-  request.onsuccess = event => callback(event);
-  request.onupgradeneeded = event => callback2(event);
-  request.onerror = error => Error(error);
+
+// does what it says
+async function download() {
+  progress.install();
+
+  cleanupDB(); // delete old entries in db
+
+  // get array of links for images
+  manga.hashes = (await mangaData().catch((e) => {
+    progress.nofetch();
+    throw e;
+  })).reader_page_urls;
+
+  // check if new or old, while opening connection to db
+  const status = await openDB();
+
+  // if the download of this same manga was done previously but ended abruptly
+  // then preserve previously downloaded images and download only new
+  if (status === 'previous') {
+    manga.hashes = [];
+    await new Promise(resolve => requestIDB(
+      manga.db.transaction("download").objectStore("download").index("buffer").openCursor(IDBKeyRange.only(0)),
+      e => cursor(e, ({ hash }) => manga.hashes.push(hash), resolve()),
+    ));
+  }
+  manga.length = manga.hashes.length;
+
+  progress.onstart(manga.length);
+
+  // download stuff after we know how many and where too
+  return Promise.resolve(manga.hashes.reduce(
+    (start, url) => start.then(queue => load(url).then(data => queue.concat(save(data)))),
+    (async (queue = []) => queue)(),
+  )).then(queued => Promise.all(queued)).then(async () => {
+    // after everything is downloaded - start to merge 'em into zip file
+    const zip = new JSZip();
+
+    await new Promise((resolve, reject) => {
+      requestIDB(
+        manga.db.transaction("download").objectStore("download").openCursor(),
+        e => cursor(e, ({ number, buffer }) => zip.file(`${number}.jpg`, buffer), resolve),
+        reject,
+      );
+    });
+
+    const file = await zip.generateAsync({ type: "blob", streamFiles: true });
+
+    (Object.assign(document.createElement('a'), {
+      download: `${document.title.replace(/\s\|\sTsumino$/, '')}.zip`,
+      href: URL.createObjectURL(file),
+      target: '_blank',
+      type: 'application/zip',
+    })).click();
+    URL.revokeObjectURL(file);
+
+    manga.db.close(); // remove db on success
+    indexedDB.deleteDatabase(manga.id);
+    progress.onloadend();
+  }).catch((e) => {
+    console.error(e);
+    progress.onerror();
+  });
 }
-function cursor(event, callback, oncomplete = () => {}) {
-  const { result } = event.target;
-  if (result) {
-    callback(result.value);
-    result.continue();
-  } else {
-    oncomplete();
+
+
+// *****************************************************************************
+// API FUNCTIONS BELOW:
+// *****************************************************************************
+
+/* Retrieve data from api
+ * if it doesnt retrieve from the first time - wait some time and try again
+ * repeat three times and succeed or die */
+function requestAPI(responseFormat, path, params, options = {}) {
+  const url = new URL(path, window.location.origin);
+  Object.entries(params).map(([query, value]) => url.searchParams.set(query, value));
+
+  const recaller = (backoff = 3) => fetch(url, options).then(async (response) => {
+    switch (response.status) {
+      case 404: return Error(`Couldn't load the gallery with id=${manga.id}. Maybe you need to check CAPTCHA.`);
+      case 200: return response[responseFormat]();
+      default:
+        if (backoff > 1) {
+          await new Promise(r => setTimeout(r, 1e4 * ~(-5 + backoff)));
+          window.console.warn(`${4 - backoff} retry to get API response on ${response.status}`);
+          return recaller(backoff - 1);
+        }
+        return Error(`Error with request: ${response.status} ${response.statusText}`);
+    }
+  });
+
+  return recaller();
+}
+
+
+// request api of what to download: ask it where are the images in internet
+async function mangaData() {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  });
+
+  const text = await requestAPI('text', '/Read/Load', { q: manga.id }, { method: 'POST', headers });
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return Error("API response was not JSON.");
   }
 }
 
+// *****************************************************************************
+// DATABASE FUNCTIONS BELOW:
+// *****************************************************************************
 
+// request browser of where to download: preserve downloaded images on hard drive
+// untill everyone of 'em succeeds
 function openDB() {
   return new Promise((resolve, reject) => {
     function onPrevious(e) {
@@ -102,43 +212,47 @@ function openDB() {
   });
 }
 
-
-function requestAPI(responseFormat, path, params, options = {}) {
-  const url = new URL(path, window.location.origin);
-  Object.entries(params).map(([query, value]) => url.searchParams.set(query, value));
-
-  const recaller = (backoff = 3) => fetch(url, options).then(async (response) => {
-    switch (response.status) {
-      case 404: return Error(`Couldn't load the gallery with id=${manga.id}. Maybe you need to check CAPTCHA.`);
-      case 200: return response[responseFormat]();
-      default:
-        if (backoff > 1) {
-          await new Promise(r => setTimeout(r, 1e4 * ~(-5 + backoff)));
-          window.console.warn(`${4 - backoff} retry to get API response on ${response.status}`);
-          return recaller(backoff - 1);
-        }
-        return Error(`Error with request: ${response.status} ${response.statusText}`);
-    }
-  });
-
-  return recaller();
+// clean db from old entries
+function cleanupDB() {
+  const now = Date.now();
+  let downloads = localStorage.getItem('downloads');
+  if (!downloads) {
+    downloads = {};
+  } else {
+    downloads = JSON.parse(downloads);
+    Object.entries(downloads).map(([dbID, timestamp]) => {
+      if (timestamp < (now - 6048e5)) { // remove entries older then ~one week from db
+        indexedDB.deleteDatabase(dbID); // it will not throw error if there is no db
+        delete downloads[dbID];
+      }
+      if (dbID === manga.id) delete downloads[dbID];
+    });
+  }
+  downloads[manga.id] = now;
+  localStorage.setItem('downloads', JSON.stringify(downloads));
 }
 
-
-async function mangaData() {
-  const headers = new Headers({
-    'Content-Type': 'application/json',
-  });
-
-  const text = await requestAPI('text', '/Read/Load', { q: manga.id }, { method: 'POST', headers });
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    return Error("API response was not JSON.");
+// shortcuts for indexedDB
+function requestIDB(request, callback, callback2 = () => {}) {
+  request.onsuccess = event => callback(event);
+  request.onupgradeneeded = event => callback2(event);
+  request.onerror = error => Error(error);
+}
+function cursor(event, callback, oncomplete = () => {}) {
+  const { result } = event.target;
+  if (result) {
+    callback(result.value);
+    result.continue();
+  } else {
+    oncomplete();
   }
 }
 
+// *****************************************************************************
+// DOWNLOAD FUNCTIONS BELOW:
+// *****************************************************************************
 
+// limit requests to server: download one image per specified time
 async function throttle(time = TIME_BETWEEN_REQUESTS) {
   if (throttle.time) {
     /* if time from previous timestamp is less then allowed - throttle it
@@ -149,6 +263,7 @@ async function throttle(time = TIME_BETWEEN_REQUESTS) {
 }
 
 
+// load image but not as image but as array buffer
 async function load(url) {
   await throttle();
   const buffer = await requestAPI('arrayBuffer', '/Image/Object', { name: url });
@@ -159,6 +274,7 @@ async function load(url) {
 }
 
 
+// save images into hard drive in separate thread
 const worker = new Worker(URL.createObjectURL(new Blob([
   `(${
     (() => {
@@ -199,9 +315,11 @@ const worker = new Worker(URL.createObjectURL(new Blob([
   })()`
 ], { type: 'application/javascript' })));
 
+// collection of resolved promises, or code forbid rejected
 const rejector = {};
 const resolver = {};
 
+// check if worker succeeded or failed
 worker.onmessage = (e) => {
   const hash = e.data;
   progress.update(manga.id);
@@ -216,93 +334,12 @@ worker.onerror = ({ message }) => {
   delete rejector[hash];
 };
 
+// send loaded buffer to worker
 function save([hash, buffer]) {
   return new Promise((resolve, reject) => {
-    resolver[hash] = resolve;
-    rejector[hash] = reject;
+    resolver[hash] = resolve; // wait untill worker succeeds
+    rejector[hash] = reject; // ... or fails
 
     worker.postMessage([hash, manga.id, buffer], [buffer]);
   });
 }
-
-
-async function download() {
-  progress.install();
-  const mangaJSON = await mangaData().catch((e) => {
-    progress.nofetch();
-    return Error(e);
-  });
-  manga.hashes = mangaJSON.reader_page_urls;
-
-  const status = await openDB();
-  console.log(status);
-
-  if (status === 'new') {
-    manga.length = Number(mangaJSON.reader_page_total);
-    if (isNaN(manga.length)) return Error('images quantity is NaN, got response:\n', mangaJSON);
-  } else if (status === 'previous') {
-    manga.hashes = [];
-    await new Promise(resolve => requestIDB(
-      manga.db.transaction("download").objectStore("download").index("buffer").openCursor(IDBKeyRange.only(0)),
-      e => cursor(e, ({ hash }) => manga.hashes.push(hash), resolve()),
-    ));
-    manga.length = manga.hashes.length;
-  }
-
-  progress.onstart(manga.length);
-
-  return Promise.resolve(manga.hashes.reduce(
-    (start, url) => start.then(queue => load(url).then(data => queue.concat(save(data)))),
-    (async (queue = []) => queue)(),
-  )).then(queued => Promise.all(queued)).then(async () => {
-    const zip = new JSZip();
-
-    await new Promise((resolve, reject) => {
-      requestIDB(
-        manga.db.transaction("download").objectStore("download").openCursor(),
-        e => cursor(e, ({ number, buffer }) => zip.file(`${number}.jpg`, buffer), resolve),
-        reject,
-      );
-    });
-
-    const file = await zip.generateAsync({ type: "blob", streamFiles: true });
-
-    (Object.assign(document.createElement('a'), {
-      download: `${document.title.replace(/\s\|\sTsumino$/, '')}.zip`,
-      href: URL.createObjectURL(file),
-      target: '_blank',
-      type: 'application/zip',
-    })).click();
-    URL.revokeObjectURL(file);
-
-    manga.db.close(); // remove db on success
-    indexedDB.deleteDatabase(manga.id);
-    progress.onloadend();
-  });
-}
-
-document.addEventListener('DOMContentLoaded', (_) => {
-  document
-    .querySelector("#complete_form > :last-child > .book-info")
-    .appendChild(Object.assign(document.createElement('button'), {
-      className: "book-read-button button-stack",
-      id: 'DownloadButton',
-      innerText: "\xa0\xa0\u2B73\xa0\xa0\xa0", // ⭳
-      onclick: (e) => {
-        e.preventDefault();
-        download();
-      },
-      title: 'Download manga',
-    }));
-});
-
-// //censure
-const style = document.createElement('style');
-style.type = "text/css";
-style.id = "tampermonkey";
-const cssRules = "background: #000; position: absolute; top: 0; left: 0; right: 0; bottom: 0; content: ''; z-index: 999;";
-style.innerText += `#thumbnails-container .book-grid-item > a:before, .book-page-cover > a:before { ${cssRules} } `;
-const interval = setInterval((_) => {
-  document.head.appendChild(style);
-  if (document.readyState === "complete") clearInterval(interval);
-}, 60);
