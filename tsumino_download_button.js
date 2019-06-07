@@ -88,7 +88,7 @@ async function download() {
     manga.hashes = [];
     await new Promise(resolve => requestIDB(
       manga.db.transaction("download").objectStore("download").index("buffer").openCursor(IDBKeyRange.only(0)),
-      e => cursor(e, ({ hash }) => manga.hashes.push(hash), resolve()),
+      e => cursor(e, ({ hash }) => manga.hashes.push(hash), resolve),
     ));
   }
   manga.length = manga.hashes.length;
