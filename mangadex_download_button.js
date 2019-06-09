@@ -54,7 +54,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       innerText: "\u2B73",
       onclick: download.bind(this, id),
       style: "cursor: pointer; position: absolute; left: 3px;",
+      tabindex: '0',
       title: `Download chapter`,
+      translate: 'no',
     }));
   }
 
@@ -68,9 +70,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       bar.style.right = "100%"; // reduces with each tick
       document.querySelector(`.chapter-row[data-id="${chapterID}"]`).parentNode.appendChild(bar); // chapter row
 
-      const btn = document.getElementById(`btn${chapterID}`);
+      const btn = document.getElementById(`btn${chapterID}`); // the arrow button
       btn.innerText = '\u21BB';
-      btn.style.pointerEvents = 'none'; // the arrow button
+      btn.style.pointerEvents = 'none';
       const animation = document.createElement('style');
       const transform = deg => `transform: rotate(${deg}deg) translateZ(0) translate3d(0, 0, 0)`;
       animation.innerText = `@keyframes tako { 0% { ${transform(0)}; } 100% { ${transform(360)}; } }`;
@@ -147,6 +149,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
     document.body.appendChild(Object.assign(document.createElement('iframe'), {
       height: 0,
+      hidden: true,
       name: `frame${id}`,
       onload: _ => process(pages, chapter).then(_ => generateZip(chapter)).catch(e => progress.error(e, id)),
       /* load manga images one after another, waiting for previous image load to start next */
