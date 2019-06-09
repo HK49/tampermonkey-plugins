@@ -10,7 +10,7 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.2.0/jszip.min.js#sha256=VwkT6wiZwXUbi2b4BOR1i5hw43XMzVsP88kpesvRYfU=
 // ==/UserScript==
 
-const TIME_BETWEEN_REQUESTS = 2000/* miliseconds */;
+const TIME_BETWEEN_REQUESTS = 1000/* miliseconds */;
 
 // TODO net::ERR_SPDY_PROTOCOL_ERROR 200 over https (memory issue?)
 // TODO Error Handling
@@ -18,9 +18,11 @@ const TIME_BETWEEN_REQUESTS = 2000/* miliseconds */;
 
 /* show progress inside button while downloading */
 const progress = {
-  install: () => { progress.button = document.getElementById("DownloadButton"); },
-  onstart: (imagesQuantity) => {
+  install: () => {
+    progress.button = document.getElementById("DownloadButton");
     progress.button.style = "pointer-events: none; cursor: not-allowed; opacity: 0.8;";
+  },
+  onstart: (imagesQuantity) => {
     const numberOfTicks = imagesQuantity * ['image load', 'image save'].length;
     progress.tick = 100 / (numberOfTicks); // 100%/above
   },
@@ -87,7 +89,7 @@ async function download() {
   if (status === 'previous') {
     manga.hashes = [];
     await new Promise(resolve => requestIDB(
-      manga.db.transaction("download").objectStore("download").index("buffer").openCursor(IDBKeyRange.only(0)),
+      transaction(manga.db, "download").index("buffer").openCursor(IDBKeyRange.only(0)),
       e => cursor(e, ({ hash }) => manga.hashes.push(hash), resolve),
     ));
   }
@@ -105,7 +107,7 @@ async function download() {
 
     await new Promise((resolve, reject) => {
       requestIDB(
-        manga.db.transaction("download").objectStore("download").openCursor(),
+        transaction(manga.db, "download").openCursor(),
         e => cursor(e, ({ number, buffer }) => zip.file(`${number}.jpg`, buffer), resolve),
         reject,
       );
@@ -199,7 +201,7 @@ function openDB() {
       store.createIndex("buffer", "buffer", { unique: false });
 
       store.transaction.oncomplete = (_) => {
-        const s = manga.db.transaction("download", "readwrite").objectStore("download");
+        const s = transaction(manga.db, "download", "readwrite");
         manga.hashes.map((hash, i) => s.add({
           hash,
           number: (i < 9 ? "00" : i < 99 ? "0" : "") + (i + 1),
@@ -251,6 +253,9 @@ function cursor(event, callback, oncomplete = () => {}) {
   } else {
     oncomplete();
   }
+}
+function transaction(db, store, mode = 'readonly') {
+  return db.transaction(store, mode).objectStore(store);
 }
 
 // *****************************************************************************
