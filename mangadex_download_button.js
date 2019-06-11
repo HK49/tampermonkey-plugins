@@ -42,7 +42,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
   // create download button in each chapter row
   document.addEventListener('DOMContentLoaded', (_) => {
-    Array.from(document.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row))
+    Array.from(document.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
   });
 
 
@@ -83,7 +83,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       progress[id] = {
         bar: document.getElementById(`progressbar${id}`),
         countdown: 100, // == bar.style.right
-        tick: 100 / ((imgQuantity * 2) + 1), // 100% / (imgs quantity * (load image + create blob) + wait zip)
+        tick: 100 / ((imgQuantity * 2) + 1), // 100% / (imgs quantity * (load + save image) + zip)
       };
     },
     update: (id) => {
@@ -189,7 +189,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         createStore.createIndex("mime", "extension", { unique: false });
 
         createStore.transaction.oncomplete = (_) => {
-          const store = chapter.db.transaction("downloads", "readwrite").objectStore("downloads");
+          const store = transaction(chapter.db, "readwrite");
           chapter.pages.map((page, i) => store.add({ // populate db if not existed
             id: i,
             sorting_name: (i < 9 ? "00" : i < 99 ? "0" : "") + (i + 1),
@@ -210,20 +210,11 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   async function pagesToDownload(chapter, previousDownload) {
     function cursorOnSaved(saved, cursorCallback) {
       return new Promise((resolve, reject) => {
-        const getPages = chapter.db.transaction("downloads").objectStore("downloads")
-          .index("saved").openCursor(IDBKeyRange.only(saved ? 1 : 0));
-
-        getPages.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            cursorCallback(event.target.result.value.page);
-            cursor.continue();
-          } else {
-            resolve();
-          }
-        };
-
-        getPages.onerror = e => reject(e);
+        requestIDB(
+          transaction(chapter.db).index("saved").openCursor(IDBKeyRange.only(saved ? 1 : 0)),
+          event => cursor(event, data => cursorCallback(data.page), resolve),
+          reject,
+        );
       });
     }
 
@@ -273,8 +264,20 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     params.set('type', type); // (manga|chapter)
     params.set('id', id);
 //  params.set('baseURL', '/api');
+//  params.set('server', null); // "cloudflare"?
 
-    const recaller = (backoff = 3) => fetch(url).then(async (response) => {
+    // const cookies = new Map(document.cookie.split(/;?\s/).map(item => item.split('=')));
+
+    const headers = new Headers({
+      // "X-XSRF-TOKEN": cookies.get(/* x-xsrf-cookie? */),
+      accept: 'application/json, text/plain;q=0.9',
+    });
+
+    const request = new Request(url, {
+      headers,
+    });
+
+    const recaller = (backoff = 3) => fetch(request).then(async (response) => {
       if (response.ok) return response.text();
       if (backoff > 1) {
         await new Promise(r => setTimeout(r, 1e4 * ~(-5 + backoff)));
@@ -341,16 +344,21 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   }
 
 
-  async function load(page, chapter) {
-    let buffer;
+  async function load(page, chapter, attempt = 0) {
+    let buffer = 0;
     await throttle();
 
+    /* avoid cors error by fetching from context with same origin as images server */
+    const request = await window.frames[`frame${chapter.id}`].fetch(chapter.src + page);
+
     try {
-      const request = await window.frames[`frame${chapter.id}`].fetch(chapter.src + page);
       buffer = await request.arrayBuffer();
     } catch (e) {
-      // retry image load ?
-      return Error(e);
+      if (request.status === 404 && attempt < 3) {
+        await new Promise(r => setTimeout(r, 1e4 + (attempt * 5e3)));
+        return load(page, chapter, attempt + 1);
+      }
+      return Error(`Problem fetching ${request.url}: ${request.status} ${request.statusText}`);
     }
 
     progress.update(chapter.id);
@@ -362,30 +370,28 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   const worker = new Worker(URL.createObjectURL(new Blob([
     `(${
       (() => {
+        function idbRequest(request, succesCall, errorCall = e => e) {
+          request.onsuccess = event => succesCall(event);
+          request.onerror = error => errorCall(error);
+        }
         function idbSave(blob, chapter, page) {
           return new Promise((resolve, reject) => {
             if (!blob) reject(Error(`error creating blob from ${chapter.src + page}`));
 
-            const request = indexedDB.open(chapter.id);
-            request.onsuccess = (event) => {
+            idbRequest(indexedDB.open(chapter.id), (event) => {
               const storage = event.target.result.transaction("downloads", "readwrite").objectStore("downloads");
-              const getPage = storage.get(page);
-              getPage.onsuccess = (e) => {
+              idbRequest(storage.get(page), (e) => {
                 const data = e.target.result;
 
                 data.blob = blob;
                 data.saved = 1;
 
-                const update = storage.put(data);
-                update.onsuccess = (_) => {
+                idbRequest(storage.put(data), () => {
                   event.target.result.close();
                   resolve();
-                };
-                update.onerror = err => reject(err);
-              };
-              getPage.onerror = err => reject(err);
-            };
-            request.onerror = e => reject(e);
+                }, reject);
+              }, reject);
+            }, reject);
           });
         }
 
@@ -450,21 +456,10 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     let zipSize = 0;
 
     await new Promise((resolve, reject) => {
-      const getData = chapter.db.transaction("downloads").objectStore("downloads").openCursor();
-      getData.onsuccess = (event) => {
-        const cursor = event.target.result;
-        if (cursor) {
-          const data = event.target.result.value;
-
-          zip.file(`${data.sorting_name}.${data.blob.type.match(/(?<=image\/)\w+$/)}`, data.blob);
-          zipSize += data.blob.size;
-
-          cursor.continue();
-        } else {
-          resolve();
-        }
-      };
-      getData.onerror = e => reject(e);
+      requestIDB(transaction(chapter.db).openCursor(), e => cursor(e, (data) => {
+        zip.file(`${data.sorting_name}.${data.blob.type.match(/(?<=image\/)\w+$/)}`, data.blob);
+        zipSize += data.blob.size;
+      }, resolve), reject);
     });
 
     const file = await zip.generateAsync({ type: "blob", streamFiles: true });
@@ -494,5 +489,23 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       `color: ${color};`,
       more,
     );
+  }
+
+  // IDB shortcuts
+  function requestIDB(request, succesCall, errorCall = e => e) {
+    request.onsuccess = event => succesCall(event);
+    request.onerror = error => errorCall(error);
+  }
+  function cursor(event, callback, oncomplete = () => {}) {
+    const { result } = event.target;
+    if (result) {
+      callback(result.value);
+      result.continue();
+    } else {
+      oncomplete();
+    }
+  }
+  function transaction(db, mode = 'readonly', store = 'downloads') {
+    return db.transaction(store, mode).objectStore(store);
   }
 })();
