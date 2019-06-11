@@ -83,7 +83,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       progress[id] = {
         bar: document.getElementById(`progressbar${id}`),
         countdown: 100, // == bar.style.right
-        tick: 100 / ((imgQuantity * 2) + 1), // 100% / (imgs quantity * (load + save image) + zip)
+        tick: 100 / ((imgQuantity * 2) + 10), // 100% / (imgs quantity * (load + save image) + zip)
       };
     },
     update: (id) => {
@@ -462,7 +462,13 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       }, resolve), reject);
     });
 
-    const file = await zip.generateAsync({ type: "blob", streamFiles: true });
+    let int = 0;
+    const file = await zip.generateAsync({ type: "blob", streamFiles: true }, (meta) => {
+      if ((((meta.percent|0) / 10)|0) > int) { // if meta % is more then 10
+        int++; // then update int, so the next comparison will be with 20, after it - 30, etc.
+        progress.update(chapter.id); // update progressbar by 1% with each 10% of meta.percent
+      }
+    });
 
     const normalisedZipSize = ((k = 1024, kiB = zipSize/k, miB = kiB/k) => {
       return miB < 1 ? `${Math.round(kiB)}kb` : `${miB.toFixed(2)}mb`;
