@@ -52,7 +52,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     parent.prepend(Object.assign(document.createElement("span"), {
       id: `btn${id}`,
       innerText: "\u2B73",
-      onclick: download.bind(this, id),
+      onclick: clickFunction.bind(this, id),
       style: "cursor: pointer; position: absolute; left: 3px;",
       tabindex: '0',
       title: `Download chapter`,
@@ -64,13 +64,15 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   // display download progress in chapter row
   const progress = {
     initiate: (chapterID) => {
+      // progrssbar
       const bar = document.getElementById(`progressbar${chapterID}`) || document.createElement('div');
       bar.id = `progressbar${chapterID}`;
       bar.style = 'background: rgba(23, 162, 184, 0.5); z-index: -1; position: absolute; top: 0; bottom: 0; left: 0;';
       bar.style.right = "100%"; // reduces with each tick
       document.querySelector(`.chapter-row[data-id="${chapterID}"]`).parentNode.appendChild(bar); // chapter row
 
-      const btn = document.getElementById(`btn${chapterID}`); // the arrow button
+      // download button
+      const btn = document.getElementById(`btn${chapterID}`);
       btn.innerText = '\u21BB';
       btn.style.pointerEvents = 'none';
       const animation = document.createElement('style');
@@ -91,8 +93,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       progress[id].bar.style.right = `${Math.round(progress[id].countdown)}%`;
     },
     remove: (id) => {
-      if (typeof progress[id] !== typeof void(0)) delete progress[id];
-      if (!!window.frames[`frame${id}`]) {
+      if (typeof progress[id] !== typeof void 0) delete progress[id];
+      if (window.frames[`frame${id}`]) {
         document.body.removeChild(document.getElementsByName(`frame${id}`)[0]);
         delete window.frames[`frame${id}`];
       }
@@ -122,7 +124,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
 
   // download chapter, duh
-  async function download(id) {
+  async function clickFunction(id) {
     progress.initiate(id);
 
     // renew timestamp in local storage and clean old and forgotten downloads from IDB
@@ -151,7 +153,12 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       height: 0,
       hidden: true,
       name: `frame${id}`,
-      onload: _ => process(pages, chapter).then(_ => generateZip(chapter)).catch(e => progress.error(e, id)),
+      onload: async (e) => {
+        const context = window.frames[e.target.name].window;
+        await download.bind(context, pages, chapter)()
+          .then(_ => generateZip(chapter))
+          .catch(err => progress.error(err, id));
+      },
       /* load manga images one after another, waiting for previous image load to start next */
       /* start image save into IDB right after this image load, not waitong for previous to finish */
       /* image save into IDB are processed in worker. so it's messages queue === saving queue */
@@ -315,21 +322,16 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   }
 
 
-  // throttled image load, convert buffer to blob,
-  // save it to IDB and only when all ready - zip em all
-  function process(pages, chapter) {
-    return Promise.resolve(
-      pages.reduce(
-        (queueStart, page) => queueStart.then(
-          queue => load(page, chapter).then( // first thread
-            img => queue.concat(save(img, chapter)) // second thread
-          )
-        ),
-        (async (queue = []) => queue)()
-      )
-    )
-    .then(promises => Promise.all(promises)) // wait for all tasks here
-    .catch(e => progress.error(e, chapter.id))
+  // load images in main thread, save into IDB in worker,
+  // don't wait for save to load next image, but wait for all saves to finish this function
+  async function download(pages, chapter) {
+    const processed = await pages.reduce(async (register, page) => {
+      const queue = await register;
+      const image = await load.bind(this, page, chapter)();
+
+      return queue.concat(save(image, chapter));
+    }, (async (queue = []) => queue)());
+    return Promise.all(processed);
   }
 
 
@@ -349,14 +351,14 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     await throttle();
 
     /* avoid cors error by fetching from context with same origin as images server */
-    const request = await window.frames[`frame${chapter.id}`].fetch(chapter.src + page);
+    const request = await this.fetch(chapter.src + page);
 
     try {
       buffer = await request.arrayBuffer();
-    } catch (e) {
+    } catch (_) {
       if (request.status === 404 && attempt < 3) {
         await new Promise(r => setTimeout(r, 1e4 + (attempt * 5e3)));
-        return load(page, chapter, attempt + 1);
+        return load.bind(this, page, chapter, attempt + 1)();
       }
       return Error(`Problem fetching ${request.url}: ${request.status} ${request.statusText}`);
     }
@@ -466,7 +468,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     const file = await zip.generateAsync({ type: "blob", streamFiles: true }, (meta) => {
       if ((((meta.percent|0) / 10)|0) > int) { // if meta % is more then 10
         int++; // then update int, so the next comparison will be with 20, after it - 30, etc.
-        progress.update(chapter.id); // update progressbar by 1% with each 10% of meta.percent
+        progress.update(chapter.id); // update progressbar by tick% with each 10% of meta.percent
       }
     });
 
