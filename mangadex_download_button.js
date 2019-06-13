@@ -6,7 +6,7 @@
 // @author       HK49
 // @icon         https://i.imgur.com/SMnA427.png
 // @license      MIT
-// @include      /^https:\/\/(?:s\d\.)?mangadex\.org\/.+/
+// @include      /^https?:\/\/(?:s\d\.)?mangadex\.org/
 // @grant        none
 // @run-at       document-start
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.2.0/jszip.min.js#sha256=VwkT6wiZwXUbi2b4BOR1i5hw43XMzVsP88kpesvRYfU=
@@ -149,21 +149,28 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     const pages = await pagesToDownload(chapter, previousDownload);
     // retrieve remaining pages from the last errored download or initiate new array to fetch
 
+
+    const process = (context = this) => download.bind(context, pages, chapter)()
+      .then(_ => generateZip(chapter))
+      .catch(err => progress.error(err, id));
+
+
+    let url = '';
+    try {
+      url = new URL(`${chapter.src}`);
+    } catch (e) {
+      if (e.message.startsWith("Failed to construct 'URL'")) {
+        return process();
+      }
+    }
+
+    log(`Images are stored on subdomain: ${url.origin}`, '#66D');
     document.body.appendChild(Object.assign(document.createElement('iframe'), {
       height: 0,
       hidden: true,
       name: `frame${id}`,
-      onload: async (e) => {
-        const context = window.frames[e.target.name].window;
-        await download.bind(context, pages, chapter)()
-          .then(_ => generateZip(chapter))
-          .catch(err => progress.error(err, id));
-      },
-      /* load manga images one after another, waiting for previous image load to start next */
-      /* start image save into IDB right after this image load, not waitong for previous to finish */
-      /* image save into IDB are processed in worker. so it's messages queue === saving queue */
-      /* zip generation starts only after all images were saved into IDB */
-      src: `${chapter.src}/${pages[0]}`, // overcome CORS image issue by working in subdomain.
+      onload: e => process(window.frames[e.target.name].window),
+      src: url.origin,
       style: 'display: none;',
       tabindex: '-1',
       width: 0,
