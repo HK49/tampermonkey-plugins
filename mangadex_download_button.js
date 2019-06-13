@@ -35,7 +35,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
 
   // TODO: error handling & logging. clean the code
-  // TODO: don't download mangasushi credit page gif over 13mb
+  // TODO: don't download mangasushi credit page gif over 13mb || gifs at all?
   // TODO [optional]: download all chapters at once button
   // TODO: think of something if captcha returns. Just notify user on 404?
 
@@ -48,9 +48,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
    * or after almost a week. */
 
 
-  function localStorageTransaction(callback) {
+  async function localStorageTransaction(callback) {
     let downloads = JSON.parse(localStorage.getItem('downloads'));
-    downloads = callback(downloads);
+    downloads = await callback(downloads);
     localStorage.setItem('downloads', JSON.stringify(downloads));
   }
 
@@ -59,9 +59,15 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   document.addEventListener('DOMContentLoaded', (e) => {
     Array.from(e.target.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
 
+    // animation for btn on click
+    const transform = deg => `transform: rotate(${deg}deg) translateZ(0) translate3d(0, 0, 0)`;
+    document.head.appendChild((Object.assign(document.createElement('style'), {
+      innerText: `@keyframes tako { 0% { ${transform(0)}; } 100% { ${transform(360)}; } }`,
+    })));
+
     // delete old and forgotten downloads
     const now = Date.now();
-    localStorageTransaction((dls) => {
+    localStorageTransaction(async (dls) => {
       const downloads = ((typeof dls === 'object') && dls) || {};
       function removeOldEntries([id, timestamp]) {
         if (timestamp < now - 6e8) { // almost week old
@@ -69,7 +75,16 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
           delete downloads[id];
         }
       }
-      if (dls) Object.entries(downloads).map(removeOldEntries);
+      if (dls) {
+        Object.entries(downloads).map(removeOldEntries);
+
+        // check if there are somehow databases without timestamp
+        const databases = await indexedDB.databases();
+        const present = Object.keys(downloads);
+        for (const { name } of databases) {
+          if (!present.some(n => n === name)) downloads[name] = Date.now();
+        }
+      }
       return downloads;
     });
   });
@@ -89,6 +104,13 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     }));
   }
 
+  // spin download button or return to normal
+  function animateBtn(b, id, btn = document.getElementById(`btn${id}`)) {
+    btn.innerText = b ? '\u21BB' : '\u2B73';
+    btn.style.animation = b ? 'tako 500ms 0s linear infinite' : null;
+    btn.style.pointerEvents = b ? 'none' : 'all';
+  }
+
 
   // display download progress in chapter row
   const progress = {
@@ -100,15 +122,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       bar.style.right = "100%"; // reduces with each tick
       document.querySelector(`.chapter-row[data-id="${chapterID}"]`).parentNode.appendChild(bar); // chapter row
 
-      // download button
-      const btn = document.getElementById(`btn${chapterID}`);
-      btn.innerText = '\u21BB';
-      btn.style.pointerEvents = 'none';
-      const animation = document.createElement('style');
-      const transform = deg => `transform: rotate(${deg}deg) translateZ(0) translate3d(0, 0, 0)`;
-      animation.innerText = `@keyframes tako { 0% { ${transform(0)}; } 100% { ${transform(360)}; } }`;
-      document.head.appendChild(animation);
-      btn.style.animation = 'tako 500ms 0s linear infinite';
+      // make download button spin
+      animateBtn(true, chapterID);
     },
     start: (id, imgQuantity) => {
       progress[id] = {
@@ -131,10 +146,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         delete window.frames[`frame${id}`];
       }
 
-      const btn = document.getElementById(`btn${id}`);
-      btn.style.pointerEvents = 'all';
-      btn.style.animation = null;
-      btn.innerText = "\u2B73";
+      // no more spinning
+      animateBtn(false, id);
     },
     complete: (id) => {
       progress[id].bar.style.right = "0";
@@ -331,6 +344,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       src: link, // example: https://s6.mangadex.org/data/MumbleBumbleJumbleSymbols/
       title, //     example: "Ch.16.2 - The Secret Of The Mark (4)"
       pages, //     ["m1.jpg", "m2.png", "m3.png", "m4.gif", "m5.png", ...]
+      // pages: pages.filter(p => !p.endsWith('gif')), // don't download gifs at all?
     };
   }
 
