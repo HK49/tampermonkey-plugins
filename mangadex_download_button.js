@@ -98,9 +98,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       innerText: "\u2B73",
       onclick: clickFunction.bind(this, id),
       style: "cursor: pointer; position: absolute; left: 3px;",
-      tabindex: '0',
+      tabIndex: '0',
       title: `Download chapter`,
-      translate: 'no',
+      translate: false,
     }));
   }
 
@@ -211,7 +211,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       onload: e => process(window.frames[e.target.name].window),
       src: url.origin,
       style: 'display: none;',
-      tabindex: '-1',
+      tabIndex: '-1',
+      translate: false,
       width: 0,
     }));
   }
