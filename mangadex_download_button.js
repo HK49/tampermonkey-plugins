@@ -237,20 +237,17 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
         const createStore = chapter.db.createObjectStore("downloads", { keyPath: "page" });
         createStore.createIndex("id", "id", { unique: true });
-        createStore.createIndex("src", "src", { unique: true });
-        createStore.createIndex("saved", "saved", { unique: false });
-        createStore.createIndex("mime", "extension", { unique: false });
+        createStore.createIndex("buffer", "buffer", { unique: false });
+        createStore.createIndex("extension", "extension", { unique: false });
 
         createStore.transaction.oncomplete = (_) => {
           const store = transaction(chapter.db, "readwrite");
           chapter.pages.map((page, i) => store.add({ // populate db if not existed
             id: i,
-            sorting_name: (i < 9 ? "00" : i < 99 ? "0" : "") + (i + 1),
-            src: chapter.src + page,
+            name: (i < 9 ? "00" : i < 99 ? "0" : "") + (i + 1),
             page,
             extension: String(page.match(/(?<=\.)\w{3,4}$/)),
-            blob: null, // the data to be stored in zip
-            saved: 0, // change on succesfull conversion
+            buffer: 0, // the data to be stored in zip
           }));
           resolve(false);
         };
@@ -263,8 +260,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   async function pagesToDownload(chapter, previousDownload) {
     function cursorOnSaved(saved, cursorCallback) {
       return new Promise((resolve, reject) => {
+        const range = IDBKeyRange[saved ? "lowerBound" : "only"](0, true);
         requestIDB(
-          transaction(chapter.db).index("saved").openCursor(IDBKeyRange.only(saved ? 1 : 0)),
+          transaction(chapter.db).index("buffer").openCursor(range),
           event => cursor(event, data => cursorCallback(data.page), resolve),
           reject,
         );
@@ -281,7 +279,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         },
       );
       await cursorOnSaved(
-        false, // fetch pages without blobs in IDB
+        false, // fetch pages without saved buffer in IDB
         page => toDownload.push(page),
       );
       return toDownload;
@@ -403,18 +401,13 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
           request.onsuccess = event => succesCall(event);
           request.onerror = error => errorCall(error);
         }
-        function idbSave(blob, chapter, page) {
+        function idbSave(buffer, chapter, page) {
           return new Promise((resolve, reject) => {
-            if (!blob) reject(Error(`error creating blob from ${chapter.src + page}`));
-
             idbRequest(indexedDB.open(chapter.id), (event) => {
               const storage = event.target.result.transaction("downloads", "readwrite").objectStore("downloads");
               idbRequest(storage.get(page), (e) => {
                 const data = e.target.result;
-
-                data.blob = blob;
-                data.saved = 1;
-
+                data.buffer = buffer;
                 idbRequest(storage.put(data), () => {
                   event.target.result.close();
                   resolve();
@@ -424,25 +417,18 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
           });
         }
 
-
-        // there will form stack of messages from convert function. will it ever overflow?
-        // TODO queue?
-        self.onmessage = (event) => {
+        this.onmessage = (event) => {
           const [
-            [page, extension], // full match, first match group
+            page,
             chapter,
             buffer,
           ] = event.data;
 
-          const blob = new Blob([buffer], {
-            type: `image/${extension === 'jpg' ? 'jpeg' : extension}`,
-          });
-
-          idbSave(blob, chapter, page)
+          idbSave(buffer, chapter, page)
             .then(() => postMessage([chapter.id, page]))
             .catch(e => Error(e, page));
         };
-        self.onerror = e => console.warn("Worker got error:\n", e);
+        this.onerror = e => console.warn("Worker got error:\n", e);
       })
     })()`
   ], { type: 'application/javascript' })));
@@ -450,30 +436,26 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
   // get response from worker and resolve awaiting promise from Promise.all array of process function
   function rejector() { }
-  function resolver() {
-    worker.onmessage = (e) => {
-      const [chapterID, page] = e.data;
-      progress.update(chapterID);
+  function resolver() { }
+  worker.onmessage = (e) => {
+    const [chapterID, page] = e.data;
+    progress.update(chapterID);
 
-      resolver[page]();
-      delete resolver[page];
-    };
-    worker.onerror = ({ message, lineno }, page) => {
-      window.console.error(`Error from worker: ${message} on line ${lineno}.`);
-      rejector[page]();
-    };
-  }
-  resolver();
+    resolver[page]();
+    delete resolver[page];
+  };
+  worker.onerror = ({ message, lineno }, page) => {
+    window.console.error(`Error from worker: ${message} on line ${lineno}.`);
+    rejector[page]();
+  };
 
 
   // convert image into data in separate thread and give way to loading
   function save([page, buffer], chapter) {
     // the promise stored in the Promise.all array in process function
     return new Promise((resolve, reject) => {
-      page = page.match(/\w?\d+\.(\w{3,4})$/);
-
-      resolver[page[0]] = resolve;
-      rejector[page[0]] = reject;
+      resolver[page] = resolve;
+      rejector[page] = reject;
 
       worker.postMessage([page, { ...chapter, db: null }, buffer], [buffer]);
     });
@@ -486,8 +468,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
     await new Promise((resolve, reject) => {
       requestIDB(transaction(chapter.db).openCursor(), e => cursor(e, (data) => {
-        zip.file(`${data.sorting_name}.${data.blob.type.match(/(?<=image\/)\w+$/)}`, data.blob);
-        zipSize += data.blob.size;
+        zip.file(`${data.name}.${data.extension}`, data.buffer);
+        zipSize += data.buffer.byteLength;
       }, resolve), reject);
     });
 
