@@ -40,9 +40,38 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   // TODO: think of something if captcha returns. Just notify user on 404?
 
 
+  /* there is entry in local storage containing id of chapter and the timestamp
+   * of when it was started to download. If the download was discontinued due to
+   * error, lost connection, user closing browser, etc then already downloaded
+   * images will stay on hard-drive, so they won't be downloaded again.
+   * Stored images on hd/ssd/whatever will be deleted on successfull download
+   * or after almost a week. */
+
+
+  function localStorageTransaction(callback) {
+    let downloads = JSON.parse(localStorage.getItem('downloads'));
+    downloads = callback(downloads);
+    localStorage.setItem('downloads', JSON.stringify(downloads));
+  }
+
+
   // create download button in each chapter row
-  document.addEventListener('DOMContentLoaded', (_) => {
-    Array.from(document.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
+  document.addEventListener('DOMContentLoaded', (e) => {
+    Array.from(e.target.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
+
+    // delete old and forgotten downloads
+    const now = Date.now();
+    localStorageTransaction((dls) => {
+      const downloads = ((typeof dls === 'object') && dls) || {};
+      function removeOldEntries([id, timestamp]) {
+        if (timestamp < now - 6e8) { // almost week old
+          indexedDB.deleteDatabase(id); // it will not throw error if there is no db
+          delete downloads[id];
+        }
+      }
+      if (dls) Object.entries(downloads).map(removeOldEntries);
+      return downloads;
+    });
   });
 
 
@@ -87,6 +116,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         countdown: 100, // == bar.style.right
         tick: 100 / ((imgQuantity * 2) + 10), // 100% / (imgs quantity * (load + save image) + zip)
       };
+
+      // create new time stamp for current download
+      localStorageTransaction((dls) => { dls[id] = Date.now(); return dls; });
     },
     update: (id) => {
       progress[id].countdown -= progress[id].tick;
@@ -108,10 +140,6 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       progress[id].bar.style.right = "0";
       progress[id].bar.style.background = "rgba(40, 167, 69, 0.5)";
       progress.remove(id);
-
-      const downloads = JSON.parse(localStorage.getItem('downloads'));
-      delete downloads[id];
-      localStorage.setItem('downloads', JSON.stringify(downloads));
     },
     error: (e, id) => {
       window.console.error(e);
@@ -127,16 +155,12 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   async function clickFunction(id) {
     progress.initiate(id);
 
-    // renew timestamp in local storage and clean old and forgotten downloads from IDB
-    cleanupDB(id);
 
     // retrieve chapter info from api
     const chapter = await chapterInfo(id).catch(e => progress.error(e, id));
     chapter.id = id;
 
-    progress.start(id, chapter.pages.length);
-
-    const previousDownload = await openDB(chapter).catch(window.console.error);
+    const previousDownload = await openDB(chapter);
     // true if db with chapter id is existing, false if created new db
     // needs to get firstly repsonse from openDB promise to understand if it is new db or old one
     // then can we define pages, because idb onsuccess event will fire even when creating new db
@@ -144,6 +168,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
 
     log(`Starting ${previousDownload ? 'previously unfinished' : 'new'} download.`, '#66D');
+    progress.start(id, chapter.pages.length);
 
 
     const pages = await pagesToDownload(chapter, previousDownload);
@@ -164,6 +189,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       }
     }
 
+    // if images are stored on subdomain - create frame on their origin
     log(`Images are stored on subdomain: ${url.origin}`, '#66D');
     document.body.appendChild(Object.assign(document.createElement('iframe'), {
       height: 0,
@@ -248,26 +274,6 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       return toDownload;
     }
     return chapter.pages; // download all pages
-  }
-
-
-  function cleanupDB(id) {
-    const now = Date.now();
-    let downloads = localStorage.getItem('downloads');
-    if (!downloads) {
-      downloads = {};
-    } else {
-      downloads = JSON.parse(downloads);
-      Object.entries(downloads).map(([thisID, timestamp]) => {
-        if (timestamp < now-7*24*3600*1000) { // remove entries older then ~one week from db
-          indexedDB.deleteDatabase(thisID); // it will not throw error if there is no db
-          delete downloads[thisID];
-        }
-        if (thisID == id) delete downloads[thisID];
-      });
-    }
-    downloads[id] = now;
-    localStorage.setItem('downloads', JSON.stringify(downloads));
   }
 
 
@@ -495,6 +501,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     progress.complete(chapter.id);
     chapter.db.close(); // remove db on success
     indexedDB.deleteDatabase(chapter.id);
+    localStorageTransaction((dls) => { delete dls[chapter.id]; return dls; });
     await new Promise(r => setTimeout(r, 3e3)); // give time to save file
   }
 
