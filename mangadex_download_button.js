@@ -55,8 +55,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   }
 
 
-  // create download button in each chapter row
   document.addEventListener('DOMContentLoaded', (e) => {
+    // create download button in each chapter row
     Array.from(e.target.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
 
     // animation for btn on click
@@ -90,64 +90,37 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   });
 
 
-  // createbutton and append function to click event
-  function createBtn(parent) {
-    const { id } = parent.dataset;
-    parent.prepend(Object.assign(document.createElement("span"), {
-      id: `btn${id}`,
-      innerText: "\u2B73",
-      onkeyup: (event) => {
-        if (![13, 32].includes(event.keyCode)) return;
-        event.target.blur();
-        clickFunction(id);
-      },
-      onmousedown: (event) => {
-        if (![0, 1].includes(event.button)) return;
-        clickFunction(id);
-        event.preventDefault();
-      },
-      style: "cursor: pointer; position: absolute; left: 3px;",
-      tabIndex: '0',
-      title: `Download chapter`,
-      translate: false,
-    }));
-  }
-
-  // spin download button or return to normal
-  function animateBtn(animate, id, btn = document.getElementById(`btn${id}`)) {
-    btn.innerText = animate ? '\u21BB' : '\u2B73';
-    btn.style.animation = animate ? 'tako 500ms 0s linear infinite' : null;
-    btn.style.pointerEvents = animate ? 'none' : 'all';
-  }
-
-
   // display download progress in chapter row
   const progress = {
     initiate: (chapterID) => {
       // progrssbar
       const bar = document.getElementById(`progressbar${chapterID}`) || document.createElement('div');
       bar.id = `progressbar${chapterID}`;
-      bar.style = 'background: rgba(23, 162, 184, 0.5); z-index: -1; position: absolute; top: 0; bottom: 0; left: 0;';
-      bar.style.right = "100%"; // reduces with each tick
+
+      const css = bar.attributeStyleMap;
+      const rules = new Map([
+        ['background-color', 'rgba(23, 162, 184, 0.5)'],
+        ['z-index', -1],
+        ['position', 'absolute'],
+        ['top', 0],
+        ['bottom', 0],
+        ['left', 0],
+        ['right', CSS.percent(100)],
+      ]);
+      for (const [prop, val] of rules) css.set(prop, val);
+
       document.querySelector(`.chapter-row[data-id="${chapterID}"]`).parentNode.appendChild(bar); // chapter row
 
-      // make download button spin
-      animateBtn(true, chapterID);
+      progress[chapterID] = { bar, css };
     },
-    start: (id, imgQuantity) => {
-      progress[id] = {
-        bar: document.getElementById(`progressbar${id}`),
-        countdown: 100, // == bar.style.right
-        tick: 100 / ((imgQuantity * 2) + 10), // 100% / (imgs quantity * (load + save image) + zip)
-      };
+    start: (id, len) => {
+      // 100% / (pages quantity * (load + save) + zip)
+      progress[id].tick = CSS.percent(100 / ((len * 2) + 10));
 
       // create new time stamp for current download
       localStorageTransaction((dls) => { dls[id] = Date.now(); return dls; });
     },
-    update: (id) => {
-      progress[id].countdown -= progress[id].tick;
-      progress[id].bar.style.right = `${Math.round(progress[id].countdown)}%`;
-    },
+    update: id => progress[id].css.set('right', progress[id].css.get('right').sub(progress[id].tick)),
     remove: (id) => {
       if (typeof progress[id] !== typeof void 0) delete progress[id];
       if (window.frames[`frame${id}`]) {
@@ -159,25 +132,76 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       animateBtn(false, id);
     },
     complete: (id) => {
-      progress[id].bar.style.right = "0";
-      progress[id].bar.style.background = "rgba(40, 167, 69, 0.5)";
+      progress[id].css.set('right', 0);
+      progress[id].css.set('background-color', 'rgba(40, 167, 69, 0.5)');
       progress.remove(id);
     },
     error: (e, id) => {
       window.console.error(e);
       if (!progress[id]) return;
-      progress[id].bar.style.right = "0";
-      progress[id].bar.style.background = "rgba(220, 53, 69, 0.5)";
+      progress[id].css.set('right', 0);
+      progress[id].css.set('background-color', 'rgba(220, 53, 69, 0.5)');
       progress.remove(id);
     },
   };
 
+  // createbutton and append function to click event
+  function createBtn(parent) {
+    const { id } = parent.dataset;
+    const button = Object.assign(document.createElement("span"), {
+      id: `btn${id}`,
+      innerText: "\u2B73",
+      tabIndex: '0',
+      title: `Download chapter`,
+      translate: false,
+    });
+    const css = new Map([
+      ['cursor', 'pointer'],
+      ['left', CSS.px(3)],
+      ['position', 'absolute'],
+    ]);
+    for (const [prop, val] of css) button.attributeStyleMap.set(prop, val);
+
+    parent.prepend(button);
+
+    ["keyup", "mouseup"].forEach(e => button.addEventListener(e, clickListener));
+  }
+
+  function clickListener(event) {
+    const [id] = event.target.id.match(/\d+/);
+    if (progress[id]) return;
+    if ([0, 1].includes(event.button) || [13, 32].includes(event.keyCode)) {
+      const button = event.target;
+      button.blur();
+      progress.initiate(id);
+      animateBtn(true, id, button);
+      clickFunction(id);
+    }
+  }
+
+  // spin download button or return to normal
+  function animateBtn(animate, id, btn = document.getElementById(`btn${id}`)) {
+    Object.assign(btn, animate ? {
+      innerText: '\u21BB',
+      tabIndex: '-1',
+    } : {
+      innerText: '\u2B73',
+      tabIndex: '0',
+    });
+
+    const css = btn.attributeStyleMap;
+    if (animate) {
+      css.set('animation', 'tako 500ms 0s linear infinite');
+      css.set('pointer-events', 'none');
+    } else {
+      css.delete('animation');
+      css.set('pointer-events', 'all');
+    }
+  }
+
 
   // download chapter, duh
   async function clickFunction(id) {
-    progress.initiate(id);
-
-
     // retrieve chapter info from api
     const chapter = await chapterInfo(id).catch(e => progress.error(e, id));
     chapter.id = id;
