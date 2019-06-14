@@ -96,7 +96,16 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     parent.prepend(Object.assign(document.createElement("span"), {
       id: `btn${id}`,
       innerText: "\u2B73",
-      onclick: clickFunction.bind(this, id),
+      onkeyup: (event) => {
+        if (![13, 32].includes(event.keyCode)) return;
+        event.target.blur();
+        clickFunction(id);
+      },
+      onmousedown: (event) => {
+        if (![0, 1].includes(event.button)) return;
+        clickFunction(id);
+        event.preventDefault();
+      },
       style: "cursor: pointer; position: absolute; left: 3px;",
       tabIndex: '0',
       title: `Download chapter`,
@@ -105,10 +114,10 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   }
 
   // spin download button or return to normal
-  function animateBtn(b, id, btn = document.getElementById(`btn${id}`)) {
-    btn.innerText = b ? '\u21BB' : '\u2B73';
-    btn.style.animation = b ? 'tako 500ms 0s linear infinite' : null;
-    btn.style.pointerEvents = b ? 'none' : 'all';
+  function animateBtn(animate, id, btn = document.getElementById(`btn${id}`)) {
+    btn.innerText = animate ? '\u21BB' : '\u2B73';
+    btn.style.animation = animate ? 'tako 500ms 0s linear infinite' : null;
+    btn.style.pointerEvents = animate ? 'none' : 'all';
   }
 
 
@@ -226,10 +235,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         chapter.db = event.target.result;
 
         resolve(true);
-        /*
-         * so the code next can understand whether the db was previously existing(in this resolve),
-         * or was newly created(resolve in onupgradeneeded)
-        */
+        /* so the code next can understand whether the db was previously existing(in this resolve),
+         * or was newly created(resolve in onupgradeneeded) */
       };
 
       // it will be called only once because we will never update version
@@ -237,14 +244,12 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         chapter.db = event.target.result;
 
         const createStore = chapter.db.createObjectStore("downloads", { keyPath: "page" });
-        createStore.createIndex("id", "id", { unique: true });
         createStore.createIndex("buffer", "buffer", { unique: false });
         createStore.createIndex("extension", "extension", { unique: false });
 
         createStore.transaction.oncomplete = (_) => {
           const store = transaction(chapter.db, "readwrite");
           chapter.pages.map((page, i) => store.add({ // populate db if not existed
-            id: i,
             name: (i < 9 ? "00" : i < 99 ? "0" : "") + (i + 1),
             page,
             extension: String(page.match(/(?<=\.)\w{3,4}$/)),
@@ -321,7 +326,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       try {
         return JSON.parse(text);
       } catch (e) {
-        Promise.reject(Error("API response was not JSON."));
+        return Promise.reject(Error(`API response was not JSON.\n${e.message}`));
       }
     });
     return recaller();
@@ -499,7 +504,6 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     chapter.db.close(); // remove db on success
     indexedDB.deleteDatabase(chapter.id);
     localStorageTransaction((dls) => { delete dls[chapter.id]; return dls; });
-    await new Promise(r => setTimeout(r, 3e3)); // give time to save file
   }
 
   function log(message, color, more = '') {
