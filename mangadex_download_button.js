@@ -59,12 +59,6 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     // create download button in each chapter row
     Array.from(e.target.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
 
-    // animation for btn on click
-    const transform = deg => `transform: rotate(${deg}deg) translateZ(0) translate3d(0, 0, 0)`;
-    document.head.appendChild((Object.assign(document.createElement('style'), {
-      innerText: `@keyframes tako { 0% { ${transform(0)}; } 100% { ${transform(360)}; } }`,
-    })));
-
     // delete old and forgotten downloads
     const now = Date.now();
     localStorageTransaction(async (dls) => {
@@ -175,7 +169,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       button.blur();
       progress.initiate(id);
       animateBtn(true, id, button);
-      clickFunction(id);
+      clickFunction(id).catch(err => progress.error(err, id));
     }
   }
 
@@ -191,11 +185,19 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
     const css = btn.attributeStyleMap;
     if (animate) {
-      css.set('animation', 'tako 500ms 0s linear infinite');
       css.set('pointer-events', 'none');
+
+      const rotate = unit => `rotate(${unit}deg) translateZ(0) translate3d(0, 0, 0)`;
+      animateBtn[id] = btn.animate([
+        { transform: rotate(0) },
+        { transform: rotate(360) },
+      ], {
+        duration: 800,
+        iterations: Infinity,
+      });
     } else {
-      css.delete('animation');
       css.set('pointer-events', 'all');
+      animateBtn[id].cancel();
     }
   }
 
@@ -203,7 +205,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   // download chapter, duh
   async function clickFunction(id) {
     // retrieve chapter info from api
-    const chapter = await chapterInfo(id).catch(e => progress.error(e, id));
+    const chapter = await chapterInfo(id);
     chapter.id = id;
 
     const previousDownload = await openDB(chapter);
@@ -222,8 +224,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
 
     const process = (context = this) => download.bind(context, pages, chapter)()
-      .then(_ => generateZip(chapter))
-      .catch(err => progress.error(err, id));
+      .then(_ => generateZip(chapter));
 
 
     let url = '';
