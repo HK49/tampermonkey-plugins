@@ -227,23 +227,19 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       .then(_ => generateZip(chapter));
 
 
-    let url = '';
-    try {
-      url = new URL(`${chapter.src}`);
-    } catch (e) {
-      if (e.message.startsWith("Failed to construct 'URL'")) {
-        return process();
-      }
+    if (chapter.src.host.match(/^mangadex/)) {
+      process();
+      return;
     }
 
     // if images are stored on subdomain - create frame on their origin
-    log(`Images are stored on subdomain: ${url.origin}`, '#66D');
+    log(`Images are stored on subdomain: ${chapter.src.origin}`, '#66D');
     document.body.appendChild(Object.assign(document.createElement('iframe'), {
       height: 0,
       hidden: true,
       name: `frame${id}`,
       onload: e => process(window.frames[e.target.name].window),
-      src: url.origin,
+      src: chapter.src.origin,
       style: 'display: none;',
       tabIndex: '-1',
       translate: false,
@@ -366,11 +362,11 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       chapter,
       title: name,
     } = await api('chapter', id);
-    const link = `${server + hash}/`; // link + page from page_array = link to image
+    const pagesPath = new URL(server + hash, window.location.origin);
     const title = `${!isNaN(Number(chapter)) && `Ch.`}${chapter}${name && ` - ${name}`}`;
 
     return {
-      src: link, // example: https://s6.mangadex.org/data/MumbleBumbleJumbleSymbols/
+      src: pagesPath, // example: https://s6.mangadex.org/data/MumbleBumbleJumbleSymbols
       title, //     example: "Ch.16.2 - The Secret Of The Mark (4)"
       pages, //     ["m1.jpg", "m2.png", "m3.png", "m4.gif", "m5.png", ...]
       // pages: pages.filter(p => !p.endsWith('gif')), // don't download gifs at all?
@@ -407,7 +403,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     await throttle();
 
     /* avoid cors error by fetching from context with same origin as images server */
-    const request = await this.fetch(chapter.src + page);
+    const request = await this.fetch(new URL(`${chapter.src}/${page}`));
 
     try {
       buffer = await request.arrayBuffer();
@@ -432,9 +428,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
           request.onsuccess = event => succesCall(event);
           request.onerror = error => errorCall(error);
         }
-        function idbSave(buffer, chapter, page) {
+        function idbSave(buffer, id, page) {
           return new Promise((resolve, reject) => {
-            idbRequest(indexedDB.open(chapter.id), (event) => {
+            idbRequest(indexedDB.open(id), (event) => {
               const storage = event.target.result.transaction("downloads", "readwrite").objectStore("downloads");
               idbRequest(storage.get(page), (e) => {
                 const data = e.target.result;
@@ -451,12 +447,12 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         this.onmessage = (event) => {
           const [
             page,
-            chapter,
+            chapterID,
             buffer,
           ] = event.data;
 
-          idbSave(buffer, chapter, page)
-            .then(() => postMessage([chapter.id, page]))
+          idbSave(buffer, chapterID, page)
+            .then(() => postMessage([chapterID, page]))
             .catch(e => Error(e, page));
         };
         this.onerror = e => console.warn("Worker got error:\n", e);
@@ -488,7 +484,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       resolver[page] = resolve;
       rejector[page] = reject;
 
-      worker.postMessage([page, { ...chapter, db: null }, buffer], [buffer]);
+      worker.postMessage([page, chapter.id, buffer], [buffer]);
     });
   }
 
