@@ -28,7 +28,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   // work only on manga title page, eg: https://mangadex.org/title/0/isekai-harem-yankee-tsundere-bullshit
 
 
-  const TIME_BETWEEN_REQUESTS = 1000/* miliseconds */;
+  const TIME_BETWEEN_REQUESTS = 2000/* miliseconds */;
   // throttle requests to server (so server won't think that it's being under atack)
   // dunno what are settings of mangadex to limit requests per minute/second.
   // do they throttle them serve-side? Probably... so is it a fool errand?
@@ -58,6 +58,9 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   document.addEventListener('DOMContentLoaded', (e) => {
     // create download button in each chapter row
     Array.from(e.target.querySelectorAll('.chapter-row[data-chapter]')).map(row => createBtn(row));
+
+    // create download button for all chapters by language
+    createDownloadAllBtn();
 
     // delete old and forgotten downloads
     const now = Date.now();
@@ -419,15 +422,15 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       })();
       item.prepend(flag);
       item.attributeStyleMap.set('cursor', 'pointer');
-      item.onclick = () => {
+      item.onclick = async () => {
         item.blur();
         item.attributeStyleMap.set('background-color', 'grey');
         // TODO archive all in one archive
-        for (const id of chapters) {
-        // TypeError: resolver[page] is not a function
+        chapters.map(async (id, i) => {
+          await new Promise(r => setTimeout(r, i * 3e4));
           progress.initiate(id);
-          clickFunction(id);
-        }
+          return clickFunction(id);
+        });
       };
       el.menu.append(item);
       el[lang] = item;
@@ -448,7 +451,6 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     };
     document.body.addEventListener("mousedown", listener, true);
   }
-  createDownloadAllBtn();
 
 
   // load images in main thread, save into IDB in worker,
@@ -465,23 +467,37 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
 
   // to not swarm server with requests
-  async function throttle(time = TIME_BETWEEN_REQUESTS) {
-    if (throttle.time) {
-      /* if time from previous timestamp is less then allowed - throttle it
-       * note: min timeout will launch anyway */
-      await new Promise(r => setTimeout(r, time - ((new Date|0) - throttle.time)));
+  async function throttle(taskID, task, timeBetweenTasks = TIME_BETWEEN_REQUESTS) {
+    if (!throttle.busy) {
+      throttle.busy = true;
+    } else {
+      throttle.tasks = (throttle.tasks || []).concat([[taskID, task]]);
+      return new Promise((resolve) => {
+        throttle[taskID] = resolve;
+      });
     }
-    throttle.time = (new Date|0); // initiate\renew timestamp
+
+    if (Date.now() - (throttle.timestump || 0) < timeBetweenTasks) {
+      await new Promise(r => setTimeout(r, timeBetweenTasks - (Date.now() - throttle.timestump)));
+    }
+
+    throttle.timestump = Date.now();
+
+    const complete = await task();
+
+    if (throttle[taskID]) throttle[taskID](complete);
+
+    throttle.busy = false;
+    if (throttle.tasks && throttle.tasks.length) throttle(...throttle.tasks.pop());
+    return complete;
   }
 
 
   async function load(page, chapter, attempt = 0) {
-    let buffer = 0;
-    await throttle();
-
     /* avoid cors error by fetching from context with same origin as images server */
-    const request = await this.fetch(new URL(`${chapter.src}/${page}`));
+    const request = await throttle(`${chapter.id}${page.match(/^\w*?(?=\.)/)}`, fetch.bind(this, new URL(`${chapter.src}/${page}`)));
 
+    let buffer = 0;
     try {
       buffer = await request.arrayBuffer();
     } catch (_) {
