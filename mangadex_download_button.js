@@ -202,7 +202,6 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   }
 
 
-  // download chapter, duh
   async function clickFunction(id) {
     // retrieve chapter info from api
     const chapter = await chapterInfo(id);
@@ -372,6 +371,70 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       // pages: pages.filter(p => !p.endsWith('gif')), // don't download gifs at all?
     };
   }
+
+  async function getChaptersByLanguage() {
+    const mangaID = Number(window.location.pathname.match(/(?<=\/title\/)\d+(?=(?:\/|$))/));
+    return Object.entries((await api('manga', mangaID)).chapter).reduce((map, [chID, chapter]) => {
+      map.set(chapter.lang_code, (map.get(chapter.lang_code) || []).concat(chID));
+      return map;
+    }, (new Map()));
+  }
+  async function createDownloadAllBtn() {
+    const el = Object.entries({
+      group: ['div', 'btn-group'],
+      btn: ['button', 'btn btn-primary dropdown-toggle'],
+      icon: ['span', 'fas fa-download fa-fw'],
+      menu: ['div', 'dropdown-menu'],
+      item: ['span', 'dropdown-item'],
+      flag: ['span', 'rounded flag'],
+    }).reduce((nodes, [key, [tag, classList]]) => {
+      nodes[key] = Object.assign(document.createElement(tag), { classList });
+      return nodes;
+    }, {});
+    document.getElementById('upload_button').parentNode.append(el.group);
+    el.group.append(el.btn, el.menu);
+    el.btn.append(el.icon);
+    const listener = (e) => {
+      const displayed = el.menu.classList.contains('show');
+      const group = Array.from(el.group.getElementsByTagName("*"));
+      if (!group.includes(e.target) && displayed) {
+        el.menu.classList.remove('show');
+      }
+      if (group.includes(e.target) && !displayed) {
+        el.menu.classList.add('show');
+      }
+    };
+    document.body.addEventListener("mousedown", listener, true);
+
+    const items = await getChaptersByLanguage();
+    for (const [lang, chapters] of items) {
+      const flag = el.flag.cloneNode();
+      const item = el.item.cloneNode();
+      flag.classList.add(`flag-${lang}`);
+      item.innerText = (() => {
+        switch (lang) {
+          case 'gb': return 'English';
+          case 'ru': return 'Russian';
+          case 'es': return 'Spanish';
+          case 'tr': return 'Turkish';
+          case 'de': return 'German';
+          default: return '';
+        }
+      })();
+      item.prepend(flag);
+      item.onclick = () => {
+        item.blur();
+        // TODO archive all in one
+        // for (const chapter of chapters) {
+        //   progress.initiate(chapter);
+        //   clickFunction(chapter);
+        //   TODO
+        // }
+      };
+      el.menu.append(item);
+    }
+  }
+  // createDownloadAllBtn();
 
 
   // load images in main thread, save into IDB in worker,
