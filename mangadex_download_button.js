@@ -52,6 +52,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     let storage = JSON.parse(localStorage.getItem(item));
     storage = await callback(storage);
     localStorage.setItem(item, JSON.stringify(storage));
+
+    return storage;
   }
 
 
@@ -444,7 +446,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         item.blur();
         item.attributeStyleMap.set('background-color', 'grey');
         // TODO archive all in one archive
-        chapters.map(async (id, i) => {
+        const store = await localStorageTransaction((o => o), 'completed');
+        chapters.filter(id => store.includes(id)).map(async (id, i) => {
           await new Promise(r => setTimeout(r, i * 3e4));
           progress.initiate(id);
           return clickFunction(id);
