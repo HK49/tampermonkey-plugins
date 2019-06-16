@@ -87,6 +87,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   // display download progress in chapter row
   const progress = {
     initiate: (chapterID) => {
+      const row = document.querySelector(`.chapter-row[data-id="${chapterID}"]`);
+      if (!row) return;
       // progrssbar
       const bar = document.getElementById(`progressbar${chapterID}`) || document.createElement('div');
       bar.id = `progressbar${chapterID}`;
@@ -103,29 +105,35 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       ]);
       for (const [prop, val] of rules) css.set(prop, val);
 
-      document.querySelector(`.chapter-row[data-id="${chapterID}"]`).parentNode.appendChild(bar); // chapter row
+      row.parentNode.appendChild(bar); // chapter row
 
       progress[chapterID] = { bar, css };
     },
     start: (id, len) => {
+      if (!progress[id]) return;
       // 100% / (pages quantity * (load + save) + zip)
       progress[id].tick = CSS.percent(100 / ((len * 2) + 10));
 
       // create new time stamp for current download
       localStorageTransaction((dls) => { dls[id] = Date.now(); return dls; });
     },
-    update: id => progress[id].css.set('right', progress[id].css.get('right').sub(progress[id].tick)),
+    update: (id) => {
+      if (!progress[id]) return;
+      progress[id].css.set('right', progress[id].css.get('right').sub(progress[id].tick));
+    },
     remove: (id) => {
-      if (typeof progress[id] !== typeof void 0) delete progress[id];
+      if (!progress[id]) return;
+      delete progress[id];
       if (window.frames[`frame${id}`]) {
         document.body.removeChild(document.getElementsByName(`frame${id}`)[0]);
         delete window.frames[`frame${id}`];
       }
 
       // no more spinning
-      animateBtn(false, id);
+      if (animateBtn[id]) animateBtn(false, id);
     },
     complete: (id) => {
+      if (!progress[id]) return;
       progress[id].css.set('right', 0);
       progress[id].css.set('background-color', 'rgba(40, 167, 69, 0.5)');
       progress.remove(id);
@@ -394,20 +402,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     document.getElementById('upload_button').parentNode.append(el.group);
     el.group.append(el.btn, el.menu);
     el.btn.append(el.icon);
-    const listener = (e) => {
-      const displayed = el.menu.classList.contains('show');
-      const group = Array.from(el.group.getElementsByTagName("*"));
-      if (!group.includes(e.target) && displayed) {
-        el.menu.classList.remove('show');
-      }
-      if (group.includes(e.target) && !displayed) {
-        el.menu.classList.add('show');
-      }
-    };
-    document.body.addEventListener("mousedown", listener, true);
 
-    const items = await getChaptersByLanguage();
-    for (const [lang, chapters] of items) {
+    (await getChaptersByLanguage()).forEach((chapters, lang) => {
       const flag = el.flag.cloneNode();
       const item = el.item.cloneNode();
       flag.classList.add(`flag-${lang}`);
@@ -422,19 +418,37 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         }
       })();
       item.prepend(flag);
+      item.attributeStyleMap.set('cursor', 'pointer');
       item.onclick = () => {
         item.blur();
-        // TODO archive all in one
-        // for (const chapter of chapters) {
-        //   progress.initiate(chapter);
-        //   clickFunction(chapter);
-        //   TODO
-        // }
+        item.attributeStyleMap.set('background-color', 'grey');
+        // TODO archive all in one archive
+        for (const id of chapters) {
+        // TypeError: resolver[page] is not a function
+          progress.initiate(id);
+          clickFunction(id);
+        }
       };
       el.menu.append(item);
-    }
+      el[lang] = item;
+    });
+
+    const group = Object.values(el);
+    const listener = (e) => {
+      const displayed = el.menu.classList.contains('show');
+      if (!group.includes(e.target) && displayed) {
+        el.menu.classList.remove('show');
+      }
+      if (group.includes(e.target) && !displayed) {
+        el.menu.classList.add('show');
+      }
+      if ([el.btn, el.icon].includes(e.target) && displayed) {
+        el.menu.classList.remove('show');
+      }
+    };
+    document.body.addEventListener("mousedown", listener, true);
   }
-  // createDownloadAllBtn();
+  createDownloadAllBtn();
 
 
   // load images in main thread, save into IDB in worker,
@@ -516,7 +530,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
           idbSave(buffer, chapterID, page)
             .then(() => postMessage([chapterID, page]))
-            .catch(e => Error(e, page));
+            .catch(e => Error(e, [chapterID, page]));
         };
         this.onerror = e => console.warn("Worker got error:\n", e);
       })
@@ -531,12 +545,12 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     const [chapterID, page] = e.data;
     progress.update(chapterID);
 
-    resolver[page]();
+    resolver[chapterID + page]();
     delete resolver[page];
   };
-  worker.onerror = ({ message, lineno }, page) => {
+  worker.onerror = ({ message, lineno }, [chapterID, page]) => {
     window.console.error(`Error from worker: ${message} on line ${lineno}.`);
-    rejector[page]();
+    rejector[chapterID + page]();
   };
 
 
@@ -544,8 +558,8 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
   function save([page, buffer], chapter) {
     // the promise stored in the Promise.all array in process function
     return new Promise((resolve, reject) => {
-      resolver[page] = resolve;
-      rejector[page] = reject;
+      resolver[chapter.id + page] = resolve;
+      rejector[chapter.id + page] = reject;
 
       worker.postMessage([page, chapter.id, buffer], [buffer]);
     });
