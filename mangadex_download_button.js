@@ -91,9 +91,13 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     localStorageTransaction(async (store) => {
       if (!store) return [];
 
-      store.forEach(id => createProgressBar(id).attributeStyleMap.set('right', CSS.px(0)));
+      // remove duplicates
+      const set = store.reduce((a, i) => void (!a.includes(i) && a.push(i)) || a, []);
 
-      return store;
+      // show in each chapter row if the chapter was previously downloaded
+      set.forEach(id => createProgressBar(id).attributeStyleMap.set('right', CSS.px(0)));
+
+      return set;
     }, 'completed');
   });
 
