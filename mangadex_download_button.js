@@ -48,10 +48,10 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
    * or after almost a week. */
 
 
-  async function localStorageTransaction(callback) {
-    let downloads = JSON.parse(localStorage.getItem('downloads'));
-    downloads = await callback(downloads);
-    localStorage.setItem('downloads', JSON.stringify(downloads));
+  async function localStorageTransaction(callback, item = 'downloads') {
+    let storage = JSON.parse(localStorage.getItem(item));
+    storage = await callback(storage);
+    localStorage.setItem(item, JSON.stringify(storage));
   }
 
 
@@ -84,33 +84,51 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       }
       return downloads;
     });
+
+    // create completed downloads storage or display to user that he already downloaded chps
+    localStorageTransaction(async (store) => {
+      if (!store) return [];
+
+      store.forEach(id => createProgressBar(id).attributeStyleMap.set('right', CSS.px(0)));
+
+      return store;
+    }, 'completed');
   });
+
+
+  function createProgressBar(id) {
+    const row = document.querySelector(`.chapter-row[data-id="${id}"]`);
+    if (!row) return false; // no visible chapter row - then no progressbar
+
+    const bar = document.getElementById(`progressbar${id}`) || document.createElement('div');
+    bar.id = `progressbar${id}`;
+
+    const css = bar.attributeStyleMap;
+    const rules = new Map([
+      ['background-color', 'rgba(23, 162, 184, 0.5)'],
+      ['z-index', -1],
+      ['position', 'absolute'],
+      ['top', 0],
+      ['bottom', 0],
+      ['left', 0],
+      ['right', CSS.percent(100)],
+    ]);
+    for (const [prop, val] of rules) css.set(prop, val);
+
+    row.parentNode.appendChild(bar); // chapter row
+
+    return bar;
+  }
 
 
   // display download progress in chapter row
   const progress = {
     initiate: (chapterID) => {
-      const row = document.querySelector(`.chapter-row[data-id="${chapterID}"]`);
-      if (!row) return;
       // progrssbar
-      const bar = document.getElementById(`progressbar${chapterID}`) || document.createElement('div');
-      bar.id = `progressbar${chapterID}`;
+      const bar = createProgressBar(chapterID);
+      if (!bar) return;
 
-      const css = bar.attributeStyleMap;
-      const rules = new Map([
-        ['background-color', 'rgba(23, 162, 184, 0.5)'],
-        ['z-index', -1],
-        ['position', 'absolute'],
-        ['top', 0],
-        ['bottom', 0],
-        ['left', 0],
-        ['right', CSS.percent(100)],
-      ]);
-      for (const [prop, val] of rules) css.set(prop, val);
-
-      row.parentNode.appendChild(bar); // chapter row
-
-      progress[chapterID] = { bar, css };
+      progress[chapterID] = { bar, css: bar.attributeStyleMap };
     },
     start: (id, len) => {
       if (!progress[id]) return;
@@ -495,7 +513,11 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
   async function load(page, chapter, attempt = 0) {
     /* avoid cors error by fetching from context with same origin as images server */
-    const request = await throttle(`${chapter.id}${page.match(/^\w*?(?=\.)/)}`, fetch.bind(this, new URL(`${chapter.src}/${page}`)));
+    const request = await throttle.bind(
+      this,
+      `${chapter.id}${page.match(/^\w*?(?=\.)/)}`,
+      fetch.bind(this, new URL(`${chapter.src}/${page}`)),
+    )();
 
     let buffer = 0;
     try {
@@ -618,6 +640,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     chapter.db.close(); // remove db on success
     indexedDB.deleteDatabase(chapter.id);
     localStorageTransaction((dls) => { delete dls[chapter.id]; return dls; });
+    localStorageTransaction(store => store.concat(chapter.id), 'completed');
   }
 
   function log(message, color, more = '') {
