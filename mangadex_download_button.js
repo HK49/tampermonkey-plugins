@@ -455,7 +455,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
         // TODO archive all in one archive
         const store = await localStorageTransaction((o => o), 'completed');
         chapters.filter(id => !store.includes(id)).map(async (id, i) => {
-          await new Promise(r => setTimeout(r, i * 3e4));
+          await new Promise(r => setTimeout(r, i * 1e4));
           progress.initiate(id);
           return clickFunction(id);
         });
@@ -499,7 +499,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
     if (!throttle.busy) {
       throttle.busy = true;
     } else {
-      throttle.tasks = (throttle.tasks || []).concat([[taskID, task]]);
+      throttle.tasks = (throttle.tasks || []).concat([[taskID, task.bind(this)]]);
       return new Promise((resolve) => {
         throttle[taskID] = resolve;
       });
@@ -511,7 +511,7 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
 
     throttle.timestump = Date.now();
 
-    const complete = await task();
+    const complete = await task.bind(this)();
 
     if (throttle[taskID]) throttle[taskID](complete);
 
