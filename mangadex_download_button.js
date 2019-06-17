@@ -95,7 +95,10 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       const set = store.reduce((a, i) => void (!a.includes(i) && a.push(i)) || a, []);
 
       // show in each chapter row if the chapter was previously downloaded
-      set.forEach(id => createProgressBar(id).attributeStyleMap.set('right', CSS.px(0)));
+      set.forEach((id) => {
+        const bar = createProgressBar(id);
+        if (bar) bar.attributeStyleMap.set('right', CSS.px(0));
+      });
 
       return set;
     }, 'completed');
@@ -446,17 +449,17 @@ document.domain = "mangadex.org"; /* we need it on both main domain and subdomai
       })();
       item.prepend(flag);
       item.attributeStyleMap.set('cursor', 'pointer');
-      item.onclick = async () => {
+      item.addEventListener('click', async () => {
         item.blur();
         item.attributeStyleMap.set('background-color', 'grey');
         // TODO archive all in one archive
         const store = await localStorageTransaction((o => o), 'completed');
-        chapters.filter(id => store.includes(id)).map(async (id, i) => {
+        chapters.filter(id => !store.includes(id)).map(async (id, i) => {
           await new Promise(r => setTimeout(r, i * 3e4));
           progress.initiate(id);
           return clickFunction(id);
         });
-      };
+      }, true);
       el.menu.append(item);
       el[lang] = item;
     });
